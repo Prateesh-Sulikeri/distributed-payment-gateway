@@ -1,0 +1,29 @@
+spring:
+  application:
+  name: mock-bank-service
+
+server:
+  port: 8081
+
+
+logging:
+  level:
+    com.payments: DEBUG
+    org.springframework.web: INFO
+    org.hibernate.SQL: WARN
+  file:
+    name: logs/mock-bank-service.log
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  logback:
+    rollingpolicy:
+      max-file-size: 10MB
+      max-history: 30
+      file-name-pattern: logs/mock-bank-service.%d{yyyy-MM-dd}.%i.log
+
+
+bank:
+  success-rate: 0.8
+  min-latency-ms: 100
+  max-latency-ms: 500
