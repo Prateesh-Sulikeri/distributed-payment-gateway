@@ -2,6 +2,7 @@ package com.payments.payment_service.payments.controller;
 
 import com.payments.payment_service.payments.dto.PaymentRequest;
 import com.payments.payment_service.payments.dto.PaymentResponse;
+import com.payments.payment_service.payments.entity.type.PaymentStatus;
 import com.payments.payment_service.payments.service.PaymentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -10,8 +11,13 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/payments")
@@ -30,7 +36,7 @@ public class PaymentController {
             @ApiResponse(responseCode = "400", description = "Invalid request data"),
             @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    @PostMapping("")
+    @PostMapping
     public ResponseEntity<PaymentResponse> createPayment(
             @Parameter(
                     description = "Payment request payload",
@@ -46,5 +52,59 @@ public class PaymentController {
             @RequestHeader("Idempotency-Key") String idempotencyKey
     ) {
         return ResponseEntity.ok(paymentService.createPayment(request, idempotencyKey));
+    }
+
+    @Operation(
+            summary = "Fetch All Payments",
+            description = "Gets a Paged response of payments present in the DB"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Page of Payments retrieved successfully"),
+            @ApiResponse(responseCode = "400", description = "invalid pagination/filter params"),
+            @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    @GetMapping("/admin")
+    public ResponseEntity<Page<PaymentResponse>> getAllPayments(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        return ResponseEntity.ok(paymentService.getAllPayments(page, size));
+    }
+
+
+    @Operation(
+            summary = "Fetch Payments by Id",
+            description = "Gets a payments present in the DB by its Id"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Payments retrieved successfully from DB by its Id"),
+            @ApiResponse(responseCode = "400", description = "invalid params"),
+            @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    @GetMapping("/admin/id/{id}")
+    public ResponseEntity<PaymentResponse> getPaymentById(
+            @PathVariable UUID id
+    ) {
+        return ResponseEntity.ok(paymentService.getPaymentById(id));
+    }
+
+    @Operation(
+            summary = "Fetch Payments by Payment Status",
+            description = "Gets a payments present in the DB by its Payment Status"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Payments retrieved successfully from DB by its Payment Status"),
+            @ApiResponse(responseCode = "400", description = "invalid params"),
+            @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    @GetMapping("/admin/status/{status}")
+    public ResponseEntity<Page<PaymentResponse>> getPaymentByStatus(
+            @PathVariable PaymentStatus status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        int cappedSize = Math.min(size, 100);
+        Pageable pageable = PageRequest.of(page, cappedSize);
+        return ResponseEntity.ok(paymentService.getPaymentByStatus(status, pageable));
     }
 }

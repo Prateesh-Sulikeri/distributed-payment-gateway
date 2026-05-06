@@ -1,22 +1,24 @@
 package com.payments.payment_service.payments.service.impl;
 
-import com.payments.payment_service.payments.client.BankClient;
-import com.payments.payment_service.payments.client.dto.BankPaymentRequest;
-import com.payments.payment_service.payments.client.dto.BankPaymentResponse;
-import com.payments.payment_service.payments.client.dto.TransactionStatus;
 import com.payments.payment_service.payments.dto.PaymentRequest;
 import com.payments.payment_service.payments.dto.PaymentResponse;
 import com.payments.payment_service.payments.entity.Payment;
 import com.payments.payment_service.payments.entity.type.PaymentStatus;
+import com.payments.payment_service.payments.processor.PaymentProcessor;
 import com.payments.payment_service.payments.repository.PaymentRepository;
 import com.payments.payment_service.payments.service.PaymentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.payments.payment_service.payments.mapper.PaymentMapper;
 
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -24,27 +26,22 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class PaymentServiceImpl implements PaymentService {
 
-    private final PaymentRepository repository;
+    private final PaymentRepository paymentRepository;
     private final RedisTemplate<String, PaymentResponse> redisTemplate;
+    private final PaymentMapper paymentMapper;
+    private final PaymentProcessor paymentProcessor;
+
     private static final String CACHE_KEY = "payment:";
     private static final long CACHE_TTL_HOURS = 24;
-    private final BankClient bankClient;
 
-    private PaymentResponse mapToResponse(Payment payment) {
-        return PaymentResponse.builder()
-                .id(payment.getId())
-                .idempotencyKey(payment.getIdempotencyKey())
-                .amount(payment.getAmount())
-                .status(payment.getStatus())
-                .paymentMethod(payment.getPaymentMethod())
-                .currency(payment.getCurrency())
-                .description(payment.getDescription())
-                .failureReason(payment.getFailureReason())
-                .createdAt(payment.getCreatedAt())
-                .updatedAt(payment.getUpdatedAt())
-                .build();
-    }
 
+    /**
+     *
+     * Caches with RedisTemplate with key as cacheKey and value as object of PaymentResponse
+     *
+     * @param cacheKey string of cache key which is a concatenation of payment:idempotency_key
+     * @param response object of PaymentResponse to be cached
+     */
     private void cacheQuietly(String cacheKey, PaymentResponse response) {
         try {
             redisTemplate.opsForValue().set(cacheKey, response, CACHE_TTL_HOURS, TimeUnit.HOURS);
@@ -53,62 +50,30 @@ public class PaymentServiceImpl implements PaymentService {
         }
     }
 
-    private BankPaymentResponse getBankProcessedResponse(Payment payment) {
-        BankPaymentRequest request = BankPaymentRequest.builder()
-                .paymentId(payment.getId())
-                .amount(payment.getAmount())
-                .currency(payment.getCurrency())
-                .paymentMethod(payment.getPaymentMethod())
-                .build();
-
-        return bankClient.process(request);
-    }
-
-    private void mapBankResponseToPayment(BankPaymentResponse bankPaymentResponse, Payment payment) {
-        if (bankPaymentResponse.getTransactionStatus() == TransactionStatus.APPROVED) {
-            payment.setStatus(PaymentStatus.SUCCESS);
-        } else {
-            payment.setStatus(PaymentStatus.FAILED);
-            payment.setFailureReason(bankPaymentResponse.getReason().name());
-        }
-    }
-
-    private Payment processBankPayment(Payment payment) {
-        BankPaymentResponse bankPaymentResponse;
-
-        try {
-            bankPaymentResponse = getBankProcessedResponse(payment);
-            mapBankResponseToPayment(bankPaymentResponse, payment);
-        } catch (Exception e) {
-            log.warn("Bank processing Failed! Failing payment: {}", e.getMessage() );
-            payment.setStatus(PaymentStatus.FAILED);
-            payment.setFailureReason("BANK_SERVICE_UNAVAILABLE");
-        }
-
-        return payment;
-    }
-
     /**
-     * Creates a new payment in an idempotent manner.
+     * Creates a payment in an idempotent manner.
      *
-     * <p>This method ensures that repeated requests with the same idempotency key
-     * do not create duplicate payment records. The flow is as follows:
+     * <p>The method first attempts to retrieve an existing payment response
+     * from Redis cache using the provided idempotency key. If the cache
+     * lookup fails or no cached response exists, the database is checked
+     * for an existing payment associated with the same idempotency key.
      *
+     * <p>If no existing payment is found:
      * <ul>
-     *     <li>Checks Redis cache for an existing response</li>
-     *     <li>Falls back to database lookup using idempotency key</li>
-     *     <li>If no existing payment is found, creates a new payment with PENDING status</li>
-     *     <li>Handles race conditions using database uniqueness constraints</li>
-     *     <li>Caches the response for faster subsequent access</li>
+     *     <li>A new {@link Payment} entity is created from the request</li>
+     *     <li>The payment is persisted with an initial PENDING status</li>
+     *     <li>The payment is processed through the {@link PaymentProcessor}</li>
+     *     <li>The updated payment state is persisted and cached</li>
      * </ul>
      *
-     * <p><b>Note:</b>the payment is created with a PENDING status.
-     * The final status (SUCCESS/FAILED) will be determined by the response from the Mock Bank service.
+     * <p>To ensure idempotency under concurrent requests, database uniqueness
+     * constraints are relied upon. If a duplicate insert occurs, the existing
+     * payment is retrieved and returned instead.
      *
-     * @param request          the payment request containing amount, currency, and payment method
-     * @param idempotencyKey   unique key to ensure idempotent payment creation
-     * @return                 the created or existing payment response
-     * @throws IllegalArgumentException if the request is invalid
+     * @param request the payment request containing payment details
+     * @param idempotencyKey unique key used to guarantee idempotent payment creation
+     * @return the newly created or previously existing payment response
+     * @throws IllegalArgumentException if the idempotency key is null or blank
      */
     @Transactional
     @Override
@@ -126,36 +91,51 @@ public class PaymentServiceImpl implements PaymentService {
             log.warn("Redis Unavailable falling through to DB: {}", e.getMessage());
         }
 
-        return repository.findByIdempotencyKey(idempotencyKey)
+        return paymentRepository.findByIdempotencyKey(idempotencyKey)
                 .map(existing -> {
-                    PaymentResponse response = mapToResponse(existing);
+                    PaymentResponse response = paymentMapper.toResponse(existing);
                     cacheQuietly(cacheKey, response);
                     return response;
                 })
                 .orElseGet(() -> {
-                    Payment payment = new Payment();
-                    payment.setIdempotencyKey(idempotencyKey);
-                    payment.setAmount(request.getAmount());
-                    payment.setCurrency(request.getCurrency());
-                    payment.setStatus(PaymentStatus.PENDING);
-                    payment.setPaymentMethod(request.getPaymentMethod());
-                    payment.setDescription(request.getDescription());
-                    payment.setFailureReason(null);
+                    Payment payment = paymentMapper.toEntity(request, idempotencyKey);
 
                     try {
-                        Payment saved = repository.save(payment);
-                        repository.flush();
-                        Payment updatedPayment = processBankPayment(saved);
-                        Payment saveUpdatedPayment = repository.save(updatedPayment);
-                        PaymentResponse response = mapToResponse(saveUpdatedPayment);
+                        paymentRepository.saveAndFlush(payment);
+                        paymentProcessor.process(payment);
+                        PaymentResponse response = paymentMapper.toResponse(payment);
                         cacheQuietly(cacheKey, response);
                         return response;
                     } catch (DataIntegrityViolationException e) {
                         log.warn("Duplicate insert caught for key: {}, fetching existing", idempotencyKey);
-                        return repository.findByIdempotencyKey(idempotencyKey)
-                                .map(this::mapToResponse)
+                        return paymentRepository.findByIdempotencyKey(idempotencyKey)
+                                .map(paymentMapper::toResponse)
                                 .orElseThrow();
                     }
                 });
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public Page<PaymentResponse> getAllPayments(int page, int size) {
+        int cappedSize = Math.min(size, 100);
+
+        Pageable pageable = PageRequest.of(page, cappedSize);
+
+        return paymentRepository.findAll(pageable)
+                .map(paymentMapper::toResponse);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public PaymentResponse getPaymentById(UUID id) {
+        return paymentMapper.toResponse(paymentRepository.findById(id).orElseThrow());
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public Page<PaymentResponse> getPaymentByStatus(PaymentStatus status, Pageable pageable) {
+        return paymentRepository.findByStatus(status, pageable)
+                .map(paymentMapper::toResponse);
     }
 }

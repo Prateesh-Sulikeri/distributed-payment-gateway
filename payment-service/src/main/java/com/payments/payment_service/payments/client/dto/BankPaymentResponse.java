@@ -1,6 +1,7 @@
 package com.payments.payment_service.payments.client.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -12,6 +13,7 @@ import java.util.UUID;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
+@Schema(description = "Response payload from mock bank service")
 public class BankPaymentResponse {
     @Schema(description = "Payment ID received from Payment Service")
     private UUID paymentId;
