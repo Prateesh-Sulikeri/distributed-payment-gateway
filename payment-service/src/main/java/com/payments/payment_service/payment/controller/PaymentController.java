@@ -1,9 +1,9 @@
-package com.payments.payment_service.payments.controller;
+package com.payments.payment_service.payment.controller;
 
-import com.payments.payment_service.payments.dto.PaymentRequest;
-import com.payments.payment_service.payments.dto.PaymentResponse;
-import com.payments.payment_service.payments.entity.type.PaymentStatus;
-import com.payments.payment_service.payments.service.PaymentService;
+import com.payments.payment_service.payment.dto.PaymentRequest;
+import com.payments.payment_service.payment.dto.PaymentResponse;
+import com.payments.payment_service.payment.entity.type.PaymentStatus;
+import com.payments.payment_service.payment.service.PaymentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;

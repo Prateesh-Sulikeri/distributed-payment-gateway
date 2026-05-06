@@ -1,4 +1,4 @@
-package com.payments.payment_service.payments.client.dto;
+package com.payments.payment_service.payment.client.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
@@ -6,5 +6,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 public enum FailureReason {
     INSUFFICIENT_FUNDS,
     BANK_TIMEOUT,
-    ACCOUNT_BLOCKED
+    ACCOUNT_BLOCKED,
+    BANK_SERVICE_UNAVAILABLE
 }

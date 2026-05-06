@@ -1,25 +1,24 @@
-package com.payments.payment_service.payments.service.impl;
+package com.payments.payment_service.payment.service.impl;
 
-import com.payments.payment_service.payments.dto.PaymentRequest;
-import com.payments.payment_service.payments.dto.PaymentResponse;
-import com.payments.payment_service.payments.entity.Payment;
-import com.payments.payment_service.payments.entity.type.PaymentStatus;
-import com.payments.payment_service.payments.processor.PaymentProcessor;
-import com.payments.payment_service.payments.repository.PaymentRepository;
-import com.payments.payment_service.payments.service.PaymentService;
+import com.payments.payment_service.payment.cache.PaymentCacheService;
+import com.payments.payment_service.payment.dto.PaymentRequest;
+import com.payments.payment_service.payment.dto.PaymentResponse;
+import com.payments.payment_service.payment.entity.Payment;
+import com.payments.payment_service.payment.entity.type.PaymentStatus;
+import com.payments.payment_service.payment.processor.PaymentProcessor;
+import com.payments.payment_service.payment.repository.PaymentRepository;
+import com.payments.payment_service.payment.service.PaymentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.payments.payment_service.payments.mapper.PaymentMapper;
+import com.payments.payment_service.payment.mapper.PaymentMapper;
 
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -27,28 +26,10 @@ import java.util.concurrent.TimeUnit;
 public class PaymentServiceImpl implements PaymentService {
 
     private final PaymentRepository paymentRepository;
-    private final RedisTemplate<String, PaymentResponse> redisTemplate;
     private final PaymentMapper paymentMapper;
     private final PaymentProcessor paymentProcessor;
+    private final PaymentCacheService paymentCacheService;
 
-    private static final String CACHE_KEY = "payment:";
-    private static final long CACHE_TTL_HOURS = 24;
-
-
-    /**
-     *
-     * Caches with RedisTemplate with key as cacheKey and value as object of PaymentResponse
-     *
-     * @param cacheKey string of cache key which is a concatenation of payment:idempotency_key
-     * @param response object of PaymentResponse to be cached
-     */
-    private void cacheQuietly(String cacheKey, PaymentResponse response) {
-        try {
-            redisTemplate.opsForValue().set(cacheKey, response, CACHE_TTL_HOURS, TimeUnit.HOURS);
-        } catch (Exception e) {
-            log.warn("Failed to cache Payment: {} ", e.getMessage());
-        }
-    }
 
     /**
      * Creates a payment in an idempotent manner.
@@ -82,19 +63,14 @@ public class PaymentServiceImpl implements PaymentService {
         if (idempotencyKey == null || idempotencyKey.isBlank())
             throw new IllegalArgumentException("Idempotency-Key is required");
 
-        String cacheKey = CACHE_KEY + idempotencyKey;
-
-        try {
-            PaymentResponse cached = redisTemplate.opsForValue().get(cacheKey);
-            if (cached != null) return cached;
-        } catch (Exception e) {
-            log.warn("Redis Unavailable falling through to DB: {}", e.getMessage());
-        }
+        PaymentResponse cachedByIdempotencyKey = paymentCacheService.getByIdempotencyKey(idempotencyKey);
+        if (cachedByIdempotencyKey != null) return cachedByIdempotencyKey;
 
         return paymentRepository.findByIdempotencyKey(idempotencyKey)
                 .map(existing -> {
                     PaymentResponse response = paymentMapper.toResponse(existing);
-                    cacheQuietly(cacheKey, response);
+                    paymentCacheService.cacheByIdempotencyKey(idempotencyKey, response);
+                    paymentCacheService.cacheById(response.getId(), response);
                     return response;
                 })
                 .orElseGet(() -> {
@@ -104,7 +80,8 @@ public class PaymentServiceImpl implements PaymentService {
                         paymentRepository.saveAndFlush(payment);
                         paymentProcessor.process(payment);
                         PaymentResponse response = paymentMapper.toResponse(payment);
-                        cacheQuietly(cacheKey, response);
+                        paymentCacheService.cacheByIdempotencyKey(idempotencyKey, response);
+                        paymentCacheService.cacheById(payment.getId(), response);
                         return response;
                     } catch (DataIntegrityViolationException e) {
                         log.warn("Duplicate insert caught for key: {}, fetching existing", idempotencyKey);
@@ -129,7 +106,11 @@ public class PaymentServiceImpl implements PaymentService {
     @Transactional(readOnly = true)
     @Override
     public PaymentResponse getPaymentById(UUID id) {
-        return paymentMapper.toResponse(paymentRepository.findById(id).orElseThrow());
+        PaymentResponse cachedById = paymentCacheService.getById(id);
+        if (cachedById != null) return cachedById;
+        PaymentResponse response = paymentMapper.toResponse(paymentRepository.findById(id).orElseThrow());
+        paymentCacheService.cacheById(id, response);
+        return response;
     }
 
     @Transactional(readOnly = true)

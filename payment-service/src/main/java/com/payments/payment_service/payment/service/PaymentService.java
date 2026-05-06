@@ -1,9 +1,8 @@
-package com.payments.payment_service.payments.service;
+package com.payments.payment_service.payment.service;
 
-import com.payments.payment_service.payments.dto.PaymentRequest;
-import com.payments.payment_service.payments.dto.PaymentResponse;
-import com.payments.payment_service.payments.entity.type.PaymentStatus;
-import jdk.jshell.Snippet;
+import com.payments.payment_service.payment.dto.PaymentRequest;
+import com.payments.payment_service.payment.dto.PaymentResponse;
+import com.payments.payment_service.payment.entity.type.PaymentStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 

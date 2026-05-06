@@ -1,11 +1,12 @@
-package com.payments.payment_service.payments.processor;
+package com.payments.payment_service.payment.processor;
 
-import com.payments.payment_service.payments.client.BankClient;
-import com.payments.payment_service.payments.client.dto.BankPaymentRequest;
-import com.payments.payment_service.payments.client.dto.BankPaymentResponse;
-import com.payments.payment_service.payments.client.dto.TransactionStatus;
-import com.payments.payment_service.payments.entity.Payment;
-import com.payments.payment_service.payments.entity.type.PaymentStatus;
+import com.payments.payment_service.payment.client.BankClient;
+import com.payments.payment_service.payment.client.dto.BankPaymentRequest;
+import com.payments.payment_service.payment.client.dto.BankPaymentResponse;
+import com.payments.payment_service.payment.client.dto.FailureReason;
+import com.payments.payment_service.payment.client.dto.TransactionStatus;
+import com.payments.payment_service.payment.entity.Payment;
+import com.payments.payment_service.payment.entity.type.PaymentStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -66,7 +67,7 @@ public class PaymentProcessor {
         } catch (Exception e) {
             log.warn("Bank processing Failed! Failing payment: {}", e.getMessage());
             payment.setStatus(PaymentStatus.FAILED);
-            payment.setFailureReason("BANK_SERVICE_UNAVAILABLE");
+            payment.setFailureReason(FailureReason.BANK_SERVICE_UNAVAILABLE.name());
         }
 
         return payment;

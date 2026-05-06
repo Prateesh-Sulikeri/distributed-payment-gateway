@@ -1,7 +1,7 @@
-package com.payments.payment_service.payments.client;
+package com.payments.payment_service.payment.client;
 
-import com.payments.payment_service.payments.client.dto.BankPaymentRequest;
-import com.payments.payment_service.payments.client.dto.BankPaymentResponse;
+import com.payments.payment_service.payment.client.dto.BankPaymentRequest;
+import com.payments.payment_service.payment.client.dto.BankPaymentResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;

@@ -1,7 +1,7 @@
-package com.payments.payment_service.payments.repository;
+package com.payments.payment_service.payment.repository;
 
-import com.payments.payment_service.payments.entity.Payment;
-import com.payments.payment_service.payments.entity.type.PaymentStatus;
+import com.payments.payment_service.payment.entity.Payment;
+import com.payments.payment_service.payment.entity.type.PaymentStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;

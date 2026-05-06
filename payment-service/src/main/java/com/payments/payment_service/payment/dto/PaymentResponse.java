@@ -1,8 +1,8 @@
-package com.payments.payment_service.payments.dto;
+package com.payments.payment_service.payment.dto;
 
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
-import com.payments.payment_service.payments.entity.type.PaymentMethod;
-import com.payments.payment_service.payments.entity.type.PaymentStatus;
+import com.payments.payment_service.payment.entity.type.PaymentMethod;
+import com.payments.payment_service.payment.entity.type.PaymentStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Data;

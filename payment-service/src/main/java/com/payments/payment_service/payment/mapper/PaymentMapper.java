@@ -1,9 +1,9 @@
-package com.payments.payment_service.payments.mapper;
+package com.payments.payment_service.payment.mapper;
 
-import com.payments.payment_service.payments.dto.PaymentRequest;
-import com.payments.payment_service.payments.dto.PaymentResponse;
-import com.payments.payment_service.payments.entity.Payment;
-import com.payments.payment_service.payments.entity.type.PaymentStatus;
+import com.payments.payment_service.payment.dto.PaymentRequest;
+import com.payments.payment_service.payment.dto.PaymentResponse;
+import com.payments.payment_service.payment.entity.Payment;
+import com.payments.payment_service.payment.entity.type.PaymentStatus;
 import org.springframework.stereotype.Component;
 
 @Component

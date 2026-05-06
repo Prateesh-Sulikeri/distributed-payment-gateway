@@ -1,8 +1,7 @@
-package com.payments.payment_service.payments.client.dto;
+package com.payments.payment_service.payment.client.dto;
 
-import com.payments.payment_service.payments.entity.type.PaymentMethod;
+import com.payments.payment_service.payment.entity.type.PaymentMethod;
 import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
