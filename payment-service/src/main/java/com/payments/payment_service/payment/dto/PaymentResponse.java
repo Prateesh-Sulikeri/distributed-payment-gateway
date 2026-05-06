@@ -1,6 +1,7 @@
 package com.payments.payment_service.payment.dto;
 
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+import com.payments.payment_service.payment.entity.type.CurrencyCode;
 import com.payments.payment_service.payment.entity.type.PaymentMethod;
 import com.payments.payment_service.payment.entity.type.PaymentStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -40,7 +41,7 @@ public class PaymentResponse {
     private BigDecimal amount;
 
     @Schema(description = "Currency code", example = "INR")
-    private String currency;
+    private CurrencyCode currency;
 
     @Schema(description = "Current Status of the payment", example = "PENDING")
     private PaymentStatus status;

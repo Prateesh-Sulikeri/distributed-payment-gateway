@@ -29,7 +29,7 @@ public class PaymentProcessor {
         BankPaymentRequest request = BankPaymentRequest.builder()
                 .paymentId(payment.getId())
                 .amount(payment.getAmount())
-                .currency(payment.getCurrency())
+                .currency(payment.getCurrency().name())
                 .paymentMethod(payment.getPaymentMethod())
                 .build();
 

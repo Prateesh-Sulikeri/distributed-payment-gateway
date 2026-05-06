@@ -1,5 +1,6 @@
 package com.payments.payment_service.payment.entity;
 
+import com.payments.payment_service.payment.entity.type.CurrencyCode;
 import com.payments.payment_service.payment.entity.type.PaymentMethod;
 import com.payments.payment_service.payment.entity.type.PaymentStatus;
 import jakarta.persistence.*;
@@ -32,8 +33,9 @@ public class Payment {
     @Column(name = "amount", nullable = false, precision = 19, scale = 4)
     private BigDecimal amount;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "currency", nullable = false, length = 3)
-    private String currency;
+    private CurrencyCode currency;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)

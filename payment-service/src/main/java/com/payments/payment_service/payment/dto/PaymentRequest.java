@@ -1,5 +1,6 @@
 package com.payments.payment_service.payment.dto;
 
+import com.payments.payment_service.payment.entity.type.CurrencyCode;
 import com.payments.payment_service.payment.entity.type.PaymentMethod;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.DecimalMin;
@@ -18,8 +19,7 @@ public class PaymentRequest {
 
     @Schema(description = "Currency Code (ISO-4217", example = "INR")
     @NotNull
-    @Size(min = 3, max = 3)
-    private String currency;
+    private CurrencyCode currency;
 
     @Schema(description = "Payment Method used", example = "UPI")
     @NotNull
