@@ -2,6 +2,7 @@ package com.payments.payment_service.payments.client.dto;
 
 import com.payments.payment_service.payments.entity.type.PaymentMethod;
 import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -17,6 +18,7 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Schema(description = "Request payload sent to mock bank")
 public class BankPaymentRequest {
     @Schema(description = "Payment Unique id")
     @NotNull
