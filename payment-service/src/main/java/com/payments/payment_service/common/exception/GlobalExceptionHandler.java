@@ -1,4 +1,4 @@
-package com.payments.payment_service.common;
+package com.payments.payment_service.common.exception;
 
 import com.payments.payment_service.payment.entity.type.CurrencyCode;
 import jakarta.servlet.http.HttpServletRequest;
@@ -20,6 +20,19 @@ public class GlobalExceptionHandler {
     ) {
         return new ApiError(
                 HttpStatus.BAD_REQUEST.value(),
+                e.getMessage(),
+                request.getRequestURI(),
+                Instant.now()
+        );
+    }
+
+    @ExceptionHandler(PaymentNotFoundException.class)
+    public ApiError handlePaymentNotFoundException(
+            PaymentNotFoundException e,
+            HttpServletRequest request
+    ) {
+        return new ApiError(
+                HttpStatus.NOT_FOUND.value(),
                 e.getMessage(),
                 request.getRequestURI(),
                 Instant.now()

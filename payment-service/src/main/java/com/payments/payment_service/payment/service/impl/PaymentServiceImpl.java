@@ -1,5 +1,6 @@
 package com.payments.payment_service.payment.service.impl;
 
+import com.payments.payment_service.common.exception.PaymentNotFoundException;
 import com.payments.payment_service.payment.cache.PaymentCacheService;
 import com.payments.payment_service.payment.dto.PaymentRequest;
 import com.payments.payment_service.payment.dto.PaymentResponse;
@@ -108,7 +109,7 @@ public class PaymentServiceImpl implements PaymentService {
     public PaymentResponse getPaymentById(UUID id) {
         PaymentResponse cachedById = paymentCacheService.getById(id);
         if (cachedById != null) return cachedById;
-        PaymentResponse response = paymentMapper.toResponse(paymentRepository.findById(id).orElseThrow());
+        PaymentResponse response = paymentMapper.toResponse(paymentRepository.findById(id).orElseThrow(() -> new PaymentNotFoundException("Payment Not Found for id: " + id)));
         paymentCacheService.cacheById(id, response);
         return response;
     }

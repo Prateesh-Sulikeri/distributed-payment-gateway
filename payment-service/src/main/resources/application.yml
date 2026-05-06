@@ -37,3 +37,11 @@ jwt:
 
 mock_bank:
   url: ${MOCK_BANK_URL}
+
+auth:
+  user:
+    username: ${AUTH_USER_USERNAME}
+    password: ${AUTH_USER_PASSWORD}
+  admin:
+    username: ${AUTH_ADMIN_USERNAME}
+    password: ${AUTH_ADMIN_PASSWORD}

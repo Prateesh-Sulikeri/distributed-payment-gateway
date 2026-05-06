@@ -1,4 +1,4 @@
-package com.payments.payment_service.common;
+package com.payments.payment_service.common.exception;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
