@@ -1,7 +1,7 @@
 # Build Progress
 
 ## Phase 1 — Core Foundation
-**Status:** 🟡 In Progress  
+**Status:** 🟢 Completed  
 **Branch:** `phase/1-core-foundation`
 
 ### Features Completed
@@ -29,7 +29,6 @@
 | Redis as L1 cache with DB fallback | Redis failure never breaks payment flow |
 | `DataIntegrityViolationException` guard | Handles race condition when two requests with same idempotency key arrive simultaneously |
 | Flyway owns schema, not Hibernate | Two things should never manage your schema |
-| Auth in payment service for now | Extracted to Auth Service in Phase 3 |
 
 ---
 
