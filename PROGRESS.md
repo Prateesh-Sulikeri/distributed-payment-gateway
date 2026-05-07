@@ -14,10 +14,9 @@
 - ✅ `GET /api/v1/payments/{id}`
 - ✅ Redis caching with DB fallback
 - ✅ Currency Validations added
-- [ ] JWT Auth
 - ✅Mock Bank Service
 - ✅ RestClient with timeout
-- [ ] Full flow tested in Bruno
+- ✅ Full flow tested in Bruno
 - ✅ Logging + dedicated log file
 - ✅ `.env` setup
 
