@@ -11,11 +11,12 @@
 - ✅ Payment entity, repository, DTOs
 - ✅ Global exception handling
 - ✅ `POST /api/v1/payments` with idempotency
-- [ ] `GET /api/v1/payments/{id}`
+- ✅ `GET /api/v1/payments/{id}`
 - ✅ Redis caching with DB fallback
+- ✅ Currency Validations added
 - [ ] JWT Auth
-- [ ] Mock Bank Service
-- [ ] RestClient with timeout
+- ✅Mock Bank Service
+- ✅ RestClient with timeout
 - [ ] Full flow tested in Bruno
 - ✅ Logging + dedicated log file
 - ✅ `.env` setup
