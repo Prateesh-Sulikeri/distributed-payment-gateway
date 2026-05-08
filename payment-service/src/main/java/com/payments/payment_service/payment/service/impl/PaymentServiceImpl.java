@@ -6,6 +6,8 @@ import com.payments.payment_service.payment.dto.PaymentRequest;
 import com.payments.payment_service.payment.dto.PaymentResponse;
 import com.payments.payment_service.payment.entity.Payment;
 import com.payments.payment_service.payment.entity.type.PaymentStatus;
+import com.payments.payment_service.payment.event.PaymentEventProducer;
+import com.payments.payment_service.payment.event.PaymentInitiatedEvent;
 import com.payments.payment_service.payment.processor.PaymentProcessor;
 import com.payments.payment_service.payment.repository.PaymentRepository;
 import com.payments.payment_service.payment.service.PaymentService;
@@ -30,7 +32,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentMapper paymentMapper;
     private final PaymentProcessor paymentProcessor;
     private final PaymentCacheService paymentCacheService;
-
+    private final PaymentEventProducer paymentEventProducer;
 
     /**
      * Creates a payment in an idempotent manner.
@@ -79,7 +81,19 @@ public class PaymentServiceImpl implements PaymentService {
 
                     try {
                         paymentRepository.saveAndFlush(payment);
-                        paymentProcessor.process(payment);
+//                        paymentProcessor.process(payment);
+                        PaymentInitiatedEvent event =
+                                PaymentInitiatedEvent.builder()
+                                        .paymentId(payment.getId())
+                                        .idempotencyKey(payment.getIdempotencyKey())
+                                        .amount(payment.getAmount())
+                                        .currency(payment.getCurrency())
+                                        .paymentMethod(payment.getPaymentMethod())
+                                        .description(payment.getDescription())
+                                        .createdAt(payment.getCreatedAt())
+                                        .build();
+
+                        paymentEventProducer.publishPaymentInitiated(event);
                         PaymentResponse response = paymentMapper.toResponse(payment);
                         paymentCacheService.cacheByIdempotencyKey(idempotencyKey, response);
                         paymentCacheService.cacheById(payment.getId(), response);
