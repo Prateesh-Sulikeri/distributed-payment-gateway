@@ -11,7 +11,7 @@
 
 | Service | Port | Description | Status |
 |---|---|---|---|
-| payment-service | 8080 | Core payment processing | 🟢 Completed |
+| payment-service | 8080 | Core payment processing | 🟢 Completed|
 | mock-bank-service | 8081 | Simulates bank processing | 🟡 In Progress |
 | merchant-service | TBD | Merchant registration & API keys | ⬜ Planned |
 | webhook-service | TBD | Merchant webhook notifications | ⬜ Planned |

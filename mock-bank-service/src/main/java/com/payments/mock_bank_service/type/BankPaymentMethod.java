@@ -1,4 +1,4 @@
-package com.payments.mock_bank_service.dto;
+package com.payments.mock_bank_service.type;
 
 public enum BankPaymentMethod {
     CARD,

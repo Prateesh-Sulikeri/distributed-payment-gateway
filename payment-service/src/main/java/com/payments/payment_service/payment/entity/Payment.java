@@ -1,8 +1,8 @@
 package com.payments.payment_service.payment.entity;
 
-import com.payments.payment_service.payment.entity.type.CurrencyCode;
-import com.payments.payment_service.payment.entity.type.PaymentMethod;
-import com.payments.payment_service.payment.entity.type.PaymentStatus;
+import com.payments.payment_service.common.type.CurrencyCode;
+import com.payments.payment_service.common.type.PaymentMethod;
+import com.payments.payment_service.common.type.PaymentStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

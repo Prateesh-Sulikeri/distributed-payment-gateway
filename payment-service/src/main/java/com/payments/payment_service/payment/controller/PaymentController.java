@@ -2,7 +2,7 @@ package com.payments.payment_service.payment.controller;
 
 import com.payments.payment_service.payment.dto.PaymentRequest;
 import com.payments.payment_service.payment.dto.PaymentResponse;
-import com.payments.payment_service.payment.entity.type.PaymentStatus;
+import com.payments.payment_service.common.type.PaymentStatus;
 import com.payments.payment_service.payment.service.PaymentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -51,7 +51,7 @@ public class PaymentController {
             )
             @RequestHeader("Idempotency-Key") String idempotencyKey
     ) {
-        return ResponseEntity.ok(paymentService.createPayment(request, idempotencyKey));
+        return ResponseEntity.accepted().body(paymentService.createPayment(request, idempotencyKey));
     }
 
     @Operation(

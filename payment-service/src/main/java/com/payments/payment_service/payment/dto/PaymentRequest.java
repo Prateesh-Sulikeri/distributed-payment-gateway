@@ -1,11 +1,10 @@
 package com.payments.payment_service.payment.dto;
 
-import com.payments.payment_service.payment.entity.type.CurrencyCode;
-import com.payments.payment_service.payment.entity.type.PaymentMethod;
+import com.payments.payment_service.common.type.CurrencyCode;
+import com.payments.payment_service.common.type.PaymentMethod;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.math.BigDecimal;
