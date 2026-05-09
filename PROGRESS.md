@@ -61,12 +61,12 @@
 - ✅ Mock Bank is Kafka consumer
 - ✅ Mock Bank publishes `payment.processed`
 - ✅ Payment Service consumes processed events
-- [ ] `POST /payments` returns 202 Accepted
+- ✅ `POST /payments` returns 202 Accepted
 - ✅ `GET /payments/{id}` reports current status
 - ✅ Idempotent consumer logic implemented
 - [ ] Consumer crash/restart recovery verified
-- [ ] Code cleanup
-- [ ] Async flow tested in Bruno
+- ✅ Code cleanup
+- ✅ Async flow tested in Bruno
 
 ### Decisions
 | Decision | Reason |

@@ -1,6 +1,8 @@
 package com.payments.mock_bank_service.event;
 
 
+import com.payments.mock_bank_service.type.CurrencyCode;
+import com.payments.mock_bank_service.type.PaymentMethod;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

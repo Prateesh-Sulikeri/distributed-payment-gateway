@@ -1,5 +1,7 @@
 package com.payments.mock_bank_service.dto;
 
+import com.payments.mock_bank_service.type.FailureReason;
+import com.payments.mock_bank_service.type.TransactionStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Data;

@@ -1,7 +1,7 @@
 package com.payments.payment_service.payment.event;
 
-import com.payments.payment_service.payment.entity.type.PaymentStatus;
-import com.payments.payment_service.payment.event.dto.TransactionStatus;
+import com.payments.payment_service.common.type.PaymentStatus;
+import com.payments.payment_service.common.type.TransactionStatus;
 import com.payments.payment_service.payment.repository.PaymentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

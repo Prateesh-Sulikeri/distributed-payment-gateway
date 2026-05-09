@@ -1,12 +1,11 @@
 package com.payments.payment_service.payment.event;
 
-import com.payments.payment_service.payment.entity.type.CurrencyCode;
-import com.payments.payment_service.payment.entity.type.PaymentMethod;
+import com.payments.payment_service.common.type.CurrencyCode;
+import com.payments.payment_service.common.type.PaymentMethod;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.time.Instant;

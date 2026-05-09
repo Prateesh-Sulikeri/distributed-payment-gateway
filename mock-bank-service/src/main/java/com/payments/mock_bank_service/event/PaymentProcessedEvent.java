@@ -1,7 +1,7 @@
 package com.payments.mock_bank_service.event;
 
-import com.payments.mock_bank_service.dto.FailureReason;
-import com.payments.mock_bank_service.dto.TransactionStatus;
+import com.payments.mock_bank_service.type.FailureReason;
+import com.payments.mock_bank_service.type.TransactionStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

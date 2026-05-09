@@ -1,7 +1,7 @@
 package com.payments.mock_bank_service.dto;
 
-import com.payments.mock_bank_service.event.CurrencyCode;
-import com.payments.mock_bank_service.event.PaymentMethod;
+import com.payments.mock_bank_service.type.CurrencyCode;
+import com.payments.mock_bank_service.type.PaymentMethod;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;

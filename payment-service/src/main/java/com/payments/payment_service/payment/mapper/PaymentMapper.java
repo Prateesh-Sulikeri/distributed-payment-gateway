@@ -3,7 +3,7 @@ package com.payments.payment_service.payment.mapper;
 import com.payments.payment_service.payment.dto.PaymentRequest;
 import com.payments.payment_service.payment.dto.PaymentResponse;
 import com.payments.payment_service.payment.entity.Payment;
-import com.payments.payment_service.payment.entity.type.PaymentStatus;
+import com.payments.payment_service.common.type.PaymentStatus;
 import org.springframework.stereotype.Component;
 
 @Component

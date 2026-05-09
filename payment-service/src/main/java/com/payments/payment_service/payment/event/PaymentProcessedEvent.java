@@ -1,7 +1,7 @@
 package com.payments.payment_service.payment.event;
 
-import com.payments.payment_service.payment.event.dto.FailureReason;
-import com.payments.payment_service.payment.event.dto.TransactionStatus;
+import com.payments.payment_service.common.type.FailureReason;
+import com.payments.payment_service.common.type.TransactionStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

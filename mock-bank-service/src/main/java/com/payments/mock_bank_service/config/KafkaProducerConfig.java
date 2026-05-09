@@ -1,7 +1,6 @@
 package com.payments.mock_bank_service.config;
 
 import com.payments.mock_bank_service.event.PaymentProcessedEvent;
-import com.payments.mock_bank_service.event.PaymentProcessedProducer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.boot.kafka.autoconfigure.KafkaProperties;
 import org.springframework.context.annotation.Bean;
