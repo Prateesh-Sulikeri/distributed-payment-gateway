@@ -1,4 +1,4 @@
-package com.payments.mock_bank_service.dto;
+package com.payments.mock_bank_service.type;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 

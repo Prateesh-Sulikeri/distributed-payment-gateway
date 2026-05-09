@@ -1,4 +1,4 @@
-package com.payments.payment_service.payment.client.dto;
+package com.payments.payment_service.common.type;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 

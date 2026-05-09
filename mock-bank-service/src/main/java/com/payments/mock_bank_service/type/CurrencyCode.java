@@ -1,4 +1,4 @@
-package com.payments.payment_service.payment.entity.type;
+package com.payments.mock_bank_service.type;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 

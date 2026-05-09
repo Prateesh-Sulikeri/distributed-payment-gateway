@@ -2,7 +2,7 @@ package com.payments.payment_service.payment.service;
 
 import com.payments.payment_service.payment.dto.PaymentRequest;
 import com.payments.payment_service.payment.dto.PaymentResponse;
-import com.payments.payment_service.payment.entity.type.PaymentStatus;
+import com.payments.payment_service.common.type.PaymentStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 

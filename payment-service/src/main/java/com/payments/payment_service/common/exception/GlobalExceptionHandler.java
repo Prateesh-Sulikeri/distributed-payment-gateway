@@ -1,6 +1,6 @@
 package com.payments.payment_service.common.exception;
 
-import com.payments.payment_service.payment.entity.type.CurrencyCode;
+import com.payments.payment_service.common.type.CurrencyCode;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
