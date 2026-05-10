@@ -58,14 +58,14 @@ public class PaymentServiceImpl implements PaymentService {
      */
     @Transactional
     @Override
-    public PaymentResponse createPayment(PaymentRequest request, String idempotencyKey) {
+    public PaymentResponse createPayment(PaymentRequest request, String idempotencyKey, String merchantId) {
 
         if (idempotencyKey == null || idempotencyKey.isBlank())
             throw new IllegalArgumentException("Idempotency-Key is required");
 
-        PaymentResponse cachedByIdempotencyKey = paymentCacheService.getByIdempotencyKey(idempotencyKey);
-        if (cachedByIdempotencyKey != null) return cachedByIdempotencyKey;
-
+        PaymentResponse cachedPayment = paymentCacheService.getByIdempotencyKey(idempotencyKey);
+        if (cachedPayment != null) return cachedPayment;
+        // Flow through to DB in case of redis failure
         return paymentRepository.findByIdempotencyKey(idempotencyKey)
                 .map(existing -> {
                     PaymentResponse response = paymentMapper.toResponse(existing);
@@ -75,10 +75,9 @@ public class PaymentServiceImpl implements PaymentService {
                 })
                 .orElseGet(() -> {
                     Payment payment = paymentMapper.toEntity(request, idempotencyKey);
-
+                    payment.setMerchantId(merchantId);
                     try {
                         paymentRepository.saveAndFlush(payment);
-//                        paymentProcessor.process(payment);
                         PaymentInitiatedEvent event =
                                 PaymentInitiatedEvent.builder()
                                         .paymentId(payment.getId())
@@ -87,6 +86,7 @@ public class PaymentServiceImpl implements PaymentService {
                                         .currency(payment.getCurrency())
                                         .paymentMethod(payment.getPaymentMethod())
                                         .description(payment.getDescription())
+                                        .merchantId(merchantId)
                                         .createdAt(payment.getCreatedAt())
                                         .build();
 

@@ -25,6 +25,7 @@ public class PaymentMapper {
                 .currency(payment.getCurrency())
                 .description(payment.getDescription())
                 .failureReason(payment.getFailureReason())
+                .merchantId(payment.getMerchantId())
                 .createdAt(payment.getCreatedAt())
                 .updatedAt(payment.getUpdatedAt())
                 .build();

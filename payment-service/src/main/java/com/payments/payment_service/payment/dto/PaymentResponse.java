@@ -55,6 +55,9 @@ public class PaymentResponse {
     @Schema(description = "Optional failure reason", example = "Insufficient Balance")
     private String failureReason;
 
+    @Schema(description = "Unique identification of merchant making the payment request")
+    private String merchantId;
+
     @JsonSerialize(using = InstantSerializer.class)
     @JsonDeserialize(using = InstantDeserializer.class)
     @Schema(description = "creation timestamp", example = "")
