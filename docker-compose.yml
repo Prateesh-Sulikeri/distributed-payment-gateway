@@ -12,6 +12,18 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  merchant-db:
+    image: postgres:16
+    container_name: merchant_postgres
+    environment:
+      POSTGRES_DB: merchant_db
+      POSTGRES_USER: merchant_user
+      POSTGRES_PASSWORD: merchant_pass
+    ports:
+      - "5433:5432"
+    volumes:
+      - merchant_postgres_data:/var/lib/postgresql/data
+
   redis:
     image: redis:7-alpine
     container_name: payment_redis
@@ -55,3 +67,4 @@ volumes:
   kafka_data:
   zookeeper_data:
   zookeeper_log:
+  merchant_postgres_data:

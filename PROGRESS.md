@@ -100,9 +100,9 @@
 - Webhook retries should avoid hammering broken callbacks
 
 ### Planned checklist
-- [ ] Merchant Service scaffolded
-- [ ] `POST /merchants/register` returns API key
-- [ ] API key validation added to payment requests
+- ✅ Merchant Service scaffolded
+- ✅ `POST /merchants/register` returns API key
+- ✅ API key validation added to payment requests
 - [ ] Merchant webhook URL persisted
 - [ ] Webhook Service created
 - [ ] Webhook delivery implemented
