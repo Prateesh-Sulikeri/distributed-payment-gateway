@@ -35,7 +35,7 @@
 ---
 
 ## Phase 2 — Kafka Async Processing
-**Status:** ⬜ Not Started
+**Status:** 🟢 Completed
 **Branch:** `phase/2-Async-processing`
 
 ### Current tasks
@@ -80,7 +80,7 @@
 ---
 
 ## Phase 3 — Merchant Side & Webhooks
-**Status:** ⬜ Not Started
+**Status:** ⬜In progress 
 **Branch:** `phase/3-merchant-webhooks`
 
 ### Planned work (draft)
