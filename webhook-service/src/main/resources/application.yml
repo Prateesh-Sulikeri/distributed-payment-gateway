@@ -1,0 +1,26 @@
+server:
+  port: ${WEBHOOK_PORT:8083}
+
+spring:
+  application:
+    name: webhook-service
+  datasource:
+    url: ${WEBHOOK_DB_URL}
+    username: ${WEBHOOK_DB_USERNAME}
+    password: ${WEBHOOK_DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+  flyway:
+    locations: classpath:db/migration
+
+logging:
+  level:
+    root: INFO
+  file:
+    name: logs/webhook-service.log

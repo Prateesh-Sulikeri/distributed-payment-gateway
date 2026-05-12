@@ -37,14 +37,14 @@ public class MerchantController {
 
     @GetMapping("/{id}")
     public ResponseEntity<MerchantResponse> getMerchantById(
-            @PathVariable UUID merchantId
+            @PathVariable("id") UUID merchantId
     ) {
         return ResponseEntity.ok(merchantService.getMerchantById(merchantId));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<MerchantResponse> updateMerchant(
-            @PathVariable UUID merchantId,
+            @PathVariable("id") UUID merchantId,
             @RequestBody MerchantRequest request
     ) {
         return ResponseEntity.ok(merchantService.updateMerchant(merchantId, request));

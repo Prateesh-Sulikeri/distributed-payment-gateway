@@ -103,13 +103,13 @@
 - ✅ Merchant Service scaffolded
 - ✅ `POST /merchants/register` returns API key
 - ✅ API key validation added to payment requests
-- [ ] Merchant webhook URL persisted
-- [ ] Webhook Service created
-- [ ] Webhook delivery implemented
-- [ ] Retry with exponential backoff added
+- ✅ Merchant webhook URL persisted
+- ✅ Webhook Service created
+- ✅ Webhook delivery implemented
+- ✅ Retry with exponential backoff added
 - [ ] Outbox pattern implemented
-- [ ] Dead webhook handling added
-- [ ] Delivery tested with webhook.site/local echo
+- ✅ Dead webhook handling added
+- ✅ Delivery tested with webhook.site/local echo
 
 ### Decisions
 | Decision | Reason |
