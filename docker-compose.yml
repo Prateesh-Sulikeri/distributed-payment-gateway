@@ -24,6 +24,18 @@ services:
     volumes:
       - merchant_postgres_data:/var/lib/postgresql/data
 
+  webhook-db:
+    image: postgres:16
+    container_name: webhook_postgres
+    environment:
+      POSTGRES_DB: webhook_db
+      POSTGRES_USER: webhook_user
+      POSTGRES_PASSWORD: webhook_pass
+    ports:
+      - "5434:5432"
+    volumes:
+      - webhook_postgres_data:/var/lib/postgresql/data
+
   redis:
     image: redis:7-alpine
     container_name: payment_redis
@@ -68,3 +80,4 @@ volumes:
   zookeeper_data:
   zookeeper_log:
   merchant_postgres_data:
+  webhook_postgres_data:

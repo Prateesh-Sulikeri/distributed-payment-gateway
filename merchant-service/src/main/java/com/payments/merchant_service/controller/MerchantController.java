@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Optional;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/merchants")
@@ -32,5 +33,27 @@ public class MerchantController {
         Optional<Merchant> merchant = merchantService.validateApiKey(apiKey);
 
         return merchant.map(value -> ResponseEntity.ok(merchantMapper.toResponse(value))).orElseGet(() -> ResponseEntity.status(401).build());
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<MerchantResponse> getMerchantById(
+            @PathVariable("id") UUID merchantId
+    ) {
+        return ResponseEntity.ok(merchantService.getMerchantById(merchantId));
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<MerchantResponse> updateMerchant(
+            @PathVariable("id") UUID merchantId,
+            @RequestBody MerchantRequest request
+    ) {
+        return ResponseEntity.ok(merchantService.updateMerchant(merchantId, request));
+    }
+
+    @PostMapping("/api-keys/rotate/{id}")
+    public ResponseEntity<MerchantResponse> rotateApiKey(
+            @PathVariable UUID id
+    ) {
+        return ResponseEntity.ok(merchantService.rotateApiKey(id));
     }
 }

@@ -1,7 +1,6 @@
 package com.payments.merchant_service.security;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import java.security.MessageDigest;
