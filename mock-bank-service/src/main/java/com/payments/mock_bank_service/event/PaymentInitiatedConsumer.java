@@ -34,6 +34,7 @@ public class PaymentInitiatedConsumer {
                 .paymentId(response.getPaymentId())
                 .transactionStatus(response.getTransactionStatus())
                 .failureReason(response.getReason())
+                .merchantId(event.getMerchantId())
                 .build();
 
         paymentProcessedProducer.publish(processedEvent);

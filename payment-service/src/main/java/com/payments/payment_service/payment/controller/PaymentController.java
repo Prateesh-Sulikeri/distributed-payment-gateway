@@ -9,8 +9,10 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -18,7 +20,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
+import java.util.logging.Handler;
 
+@Slf4j
 @RestController
 @RequestMapping("/payments")
 @RequiredArgsConstructor
@@ -38,6 +42,7 @@ public class PaymentController {
     })
     @PostMapping
     public ResponseEntity<PaymentResponse> createPayment(
+            HttpServletRequest httpRequest,
             @Parameter(
                     description = "Payment request payload",
                     required = true
@@ -51,7 +56,9 @@ public class PaymentController {
             )
             @RequestHeader("Idempotency-Key") String idempotencyKey
     ) {
-        return ResponseEntity.accepted().body(paymentService.createPayment(request, idempotencyKey));
+        String merchantId = (String) httpRequest.getAttribute("merchantId");
+        log.info("Retrieved merchantId from request: {}", merchantId);
+        return ResponseEntity.accepted().body(paymentService.createPayment(request, idempotencyKey, merchantId));
     }
 
     @Operation(

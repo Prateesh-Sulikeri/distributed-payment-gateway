@@ -19,4 +19,6 @@ public class PaymentProcessedEvent {
     private TransactionStatus transactionStatus;
 
     private FailureReason failureReason;
+
+    private String merchantId;
 }
