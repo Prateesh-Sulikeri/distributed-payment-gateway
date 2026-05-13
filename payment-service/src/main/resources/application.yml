@@ -50,3 +50,11 @@ auth:
     username: ${AUTH_ADMIN_USERNAME}
     password: ${AUTH_ADMIN_PASSWORD}
     role: ${AUTH_ADMIN_ROLE}
+
+logging:
+  file:
+    name: logs/payment-service.log
+
+  level:
+    com.payments.payment_service.payment.event.outbox: WARN
+    root: INFO

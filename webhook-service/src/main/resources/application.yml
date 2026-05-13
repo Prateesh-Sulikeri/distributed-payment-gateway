@@ -21,6 +21,7 @@ spring:
 
 logging:
   level:
+    com.payments.webhook_service.job: WARN
     root: INFO
   file:
     name: logs/webhook-service.log
