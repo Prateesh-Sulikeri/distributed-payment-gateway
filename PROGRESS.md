@@ -107,9 +107,27 @@
 - ✅ Webhook Service created
 - ✅ Webhook delivery implemented
 - ✅ Retry with exponential backoff added
-- [ ] Outbox pattern implemented
+- ✅ Outbox pattern implemented
 - ✅ Dead webhook handling added
 - ✅ Delivery tested with webhook.site/local echo
+
+# Phase 3 - Cleanup & Polish Tasks
+
+## Payment Service
+- [ ] Distributed locking for OutboxPublisherJob (prevent concurrent executions)
+- [ ] Idempotency on Outbox publishing (prevent duplicate Kafka publishes)
+
+## Webhook Service
+- [ ] Webhook signature verification (for security - verify requests came from gateway)
+- [ ] Webhook delivery metrics/monitoring (track success rates, latency)
+
+## Merchant Service
+- [ ] Multiple API keys per merchant support
+- [ ] Merchant status management (ACTIVE/INACTIVE/SUSPENDED enforcement)
+
+## General
+- [ ] Error handling improvements (graceful degradation, better error messages)
+- [ ] API documentation (Swagger/OpenAPI on all endpoints)
 
 ### Decisions
 | Decision | Reason |

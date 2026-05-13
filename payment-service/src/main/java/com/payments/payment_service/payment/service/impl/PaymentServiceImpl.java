@@ -1,6 +1,8 @@
 package com.payments.payment_service.payment.service.impl;
 
 import com.payments.payment_service.common.exception.PaymentNotFoundException;
+import com.payments.payment_service.common.type.EventStatus;
+import com.payments.payment_service.common.type.EventType;
 import com.payments.payment_service.payment.cache.PaymentCacheService;
 import com.payments.payment_service.payment.dto.PaymentRequest;
 import com.payments.payment_service.payment.dto.PaymentResponse;
@@ -8,6 +10,8 @@ import com.payments.payment_service.payment.entity.Payment;
 import com.payments.payment_service.common.type.PaymentStatus;
 import com.payments.payment_service.payment.event.PaymentEventProducer;
 import com.payments.payment_service.payment.event.PaymentInitiatedEvent;
+import com.payments.payment_service.payment.event.outbox.OutboxEvent;
+import com.payments.payment_service.payment.event.outbox.OutboxRepository;
 import com.payments.payment_service.payment.repository.PaymentRepository;
 import com.payments.payment_service.payment.service.PaymentService;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +23,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.payments.payment_service.payment.mapper.PaymentMapper;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.UUID;
 
@@ -31,31 +36,9 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentMapper paymentMapper;
     private final PaymentCacheService paymentCacheService;
     private final PaymentEventProducer paymentEventProducer;
+    private final ObjectMapper objectMapper;
+    private final OutboxRepository outboxRepository;
 
-    /**
-     * Creates a payment in an idempotent manner.
-     *
-     * <p>The method first attempts to retrieve an existing payment response
-     * from Redis cache using the provided idempotency key. If the cache
-     * lookup fails or no cached response exists, the database is checked
-     * for an existing payment associated with the same idempotency key.
-     *
-     * <p>If no existing payment is found:
-     * <ul>
-     *     <li>A new {@link Payment} entity is created from the request</li>
-     *     <li>The payment is persisted with an initial PENDING status</li>
-     *     <li>The updated payment state is persisted and cached</li>
-     * </ul>
-     *
-     * <p>To ensure idempotency under concurrent requests, database uniqueness
-     * constraints are relied upon. If a duplicate insert occurs, the existing
-     * payment is retrieved and returned instead.
-     *
-     * @param request the payment request containing payment details
-     * @param idempotencyKey unique key used to guarantee idempotent payment creation
-     * @return the newly created or previously existing payment response
-     * @throws IllegalArgumentException if the idempotency key is null or blank
-     */
     @Transactional
     @Override
     public PaymentResponse createPayment(PaymentRequest request, String idempotencyKey, String merchantId) {
@@ -90,7 +73,13 @@ public class PaymentServiceImpl implements PaymentService {
                                         .createdAt(payment.getCreatedAt())
                                         .build();
 
-                        paymentEventProducer.publishPaymentInitiated(event);
+//                        paymentEventProducer.publishPaymentInitiated(event);
+                        OutboxEvent outboxEvent = OutboxEvent.builder()
+                                .eventType(EventType.PAYMENT_INITIATED)
+                                .payload(objectMapper.writeValueAsString(event))
+                                .status(EventStatus.PENDING)
+                                .build();
+                        outboxRepository.save(outboxEvent);
                         PaymentResponse response = paymentMapper.toResponse(payment);
                         paymentCacheService.cacheByIdempotencyKey(idempotencyKey, response);
                         paymentCacheService.cacheById(payment.getId(), response);
