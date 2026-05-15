@@ -13,9 +13,9 @@
 |---|---|---|---|
 | payment-service | 8080 | Core payment processing | 🟢 Completed|
 | mock-bank-service | 8081 | Simulates bank processing | 🟢 Completed |
-| merchant-service | 8082 | Merchant registration & API keys | 🟡 In Progress |
-| webhook-service | 8083 | Merchant webhook notifications | 🟡 In Progress |
-| settlement-service | TBD | End-of-day batch settlement | ⬜ Planned |
+| merchant-service | 8082 | Merchant registration & API keys | 🟢 Completed |
+| webhook-service | 8083 | Merchant webhook notifications | 🟢 Completed |
+| settlement-service | TBD | End-of-day batch settlement | 🔵 Up next |
 | auth-service | TBD | Centralized authentication | ⬜ Planned |
 | api-gateway | TBD | Single entry point | ⬜ Planned |
 
