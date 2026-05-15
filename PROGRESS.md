@@ -64,7 +64,7 @@
 - ✅ `POST /payments` returns 202 Accepted
 - ✅ `GET /payments/{id}` reports current status
 - ✅ Idempotent consumer logic implemented
-- [ ] Consumer crash/restart recovery verified
+- ✅ Consumer crash/restart recovery verified
 - ✅ Code cleanup
 - ✅ Async flow tested in Bruno
 
@@ -80,7 +80,7 @@
 ---
 
 ## Phase 3 — Merchant Side & Webhooks
-**Status:** ⬜In progress 
+**Status:** 🟢 Completed 
 **Branch:** `phase/3-merchant-webhooks`
 
 ### Planned work (draft)
@@ -114,7 +114,7 @@
 # Phase 3 - Cleanup & Polish Tasks
 
 ## Payment Service
-- [ ] Distributed locking for OutboxPublisherJob (prevent concurrent executions)
+- ✅ Distributed locking for OutboxPublisherJob (prevent concurrent executions)
 - [ ] Idempotency on Outbox publishing (prevent duplicate Kafka publishes)
 
 ## Webhook Service
@@ -141,7 +141,7 @@
 ---
 
 ## Phase 4 — Multiple Payment Methods
-**Status:** ⬜ Not Started
+**Status:** 🟢 Completed
 **Branch:** `phase/4-payment-methods`
 
 ### Planned work (draft)
@@ -163,14 +163,14 @@
 - Strategy-style router should allow adding methods with minimal changes
 
 ### Planned checklist
-- [ ] `PaymentProcessor` interface defined
-- [ ] CardProcessor implemented
-- [ ] UpiProcessor implemented
-- [ ] NetBankingProcessor implemented
-- [ ] `PaymentRouter` wired by method
-- [ ] `paymentMethod` enum added to request
-- [ ] Failure codes are specific per method
-- [ ] All methods validated in Bruno
+- ✅ `PaymentProcessor` interface defined
+- ✅ CardProcessor implemented
+- ✅ UpiProcessor implemented
+- ✅ NetBankingProcessor implemented
+- ✅ `PaymentRouter` wired by method
+- ✅ `paymentMethod` enum added to request
+- ✅ Failure codes are specific per method
+- ✅ All methods validated in Bruno
 
 ### Decisions
 | Decision | Reason |
@@ -183,7 +183,7 @@
 ---
 
 ## Phase 5 — Resilience & Fault Tolerance
-**Status:** ⬜ Not Started
+**Status:** 🔵 Up Next
 **Branch:** `phase/5-resilience`
 
 ### Planned work (draft)

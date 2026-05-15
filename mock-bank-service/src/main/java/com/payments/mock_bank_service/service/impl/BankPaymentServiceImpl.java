@@ -3,55 +3,34 @@ package com.payments.mock_bank_service.service.impl;
 import com.payments.mock_bank_service.config.BankConfig;
 import com.payments.mock_bank_service.dto.BankPaymentRequest;
 import com.payments.mock_bank_service.dto.BankPaymentResponse;
+import com.payments.mock_bank_service.processor.PaymentProcessor;
+import com.payments.mock_bank_service.processor.PaymentRouter;
 import com.payments.mock_bank_service.type.FailureReason;
 import com.payments.mock_bank_service.type.TransactionStatus;
 import com.payments.mock_bank_service.service.BankPaymentService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.concurrent.ThreadLocalRandom;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class BankPaymentServiceImpl implements BankPaymentService {
 
-    private final BankConfig bankConfig;
-
-    private void simulateLatency() {
-        int min = bankConfig.getMinLatencyMs();
-        int max = bankConfig.getMaxLatencyMs();
-        int delay = (min >= max) ? min : ThreadLocalRandom.current().nextInt(min, max+1);
-
-        try {
-            Thread.sleep(delay);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-    }
-
-    private FailureReason randomFailureReason() {
-        FailureReason[] values = FailureReason.values();
-        return values[ThreadLocalRandom.current().nextInt(values.length)];
-    }
+    private final PaymentRouter paymentRouter;
 
     @Override
     public BankPaymentResponse process(BankPaymentRequest request) {
-        simulateLatency();
+        log.info(
+                "Processing paymentId={} method={}",
+                request.getPaymentId(),
+                request.getPaymentMethod()
+        );
 
-        boolean approved = ThreadLocalRandom.current().nextDouble() < bankConfig.getSuccessRate();
+        PaymentProcessor paymentProcessor = paymentRouter.getProcessor(request.getPaymentMethod());
 
-        if (approved) {
-            return BankPaymentResponse.builder()
-                    .paymentId(request.getPaymentId())
-                    .transactionStatus(TransactionStatus.APPROVED)
-                    .reason(null)
-                    .build();
-        }
-
-        return BankPaymentResponse.builder()
-                .paymentId(request.getPaymentId())
-                .transactionStatus(TransactionStatus.DECLINED)
-                .reason(randomFailureReason())
-                .build();
+        return paymentProcessor.process(request);
     }
 }
