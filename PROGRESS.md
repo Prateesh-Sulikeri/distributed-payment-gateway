@@ -183,7 +183,7 @@
 ---
 
 ## Phase 5 — Resilience & Fault Tolerance
-**Status:** 🔵 Up Next
+**Status:** 🟡 In Progress
 **Branch:** `phase/5-resilience`
 
 ### Planned work (draft)
