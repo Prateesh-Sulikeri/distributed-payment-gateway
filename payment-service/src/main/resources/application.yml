@@ -29,7 +29,25 @@ spring:
     baseline-on-migrate: true
 
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      properties:
+        request.timeout.ms: 3000
+        delivery.timeout.ms: 5000
+        max.block.ms: 3000
+
+  http:
+    client:
+      connectionTimeout: 5000
+      readTimeout: 5000
+
+  cloud:
+    openfeign:
+      client:
+        config:
+          merchant-service:
+            connectTimeout: 5000
+            readTimeout: 5000
 
 server:
   port: 8080
@@ -58,3 +76,14 @@ logging:
   level:
     com.payments.payment_service.payment.event.outbox: WARN
     root: INFO
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      kafkaProducer:
+        registerHealthIndicator: true
+        slidingWindowSize: 5
+        failureRateThreshold: 50.0
+        waitDurationInOpenState: 10000
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true

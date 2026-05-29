@@ -7,7 +7,10 @@ import com.payments.webhook_service.repository.WebhookDeliveryRepository;
 import com.payments.webhook_service.type.WebhookDeliveryStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.kafka.annotation.BackOff;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.annotation.RetryableTopic;
+import org.springframework.kafka.retrytopic.TopicSuffixingStrategy;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
 
@@ -23,6 +26,16 @@ public class PaymentProcessedConsumer {
     private final MerchantServiceClient merchantServiceClient;
     private final ObjectMapper objectMapper;
 
+    @RetryableTopic(
+            attempts = "3",
+            backOff = @BackOff(
+                    delay = 2000,
+                    multiplier = 2.0
+            ),
+            dltTopicSuffix = ".DLT",
+            topicSuffixingStrategy = TopicSuffixingStrategy.SUFFIX_WITH_INDEX_VALUE,
+            autoStartDltHandler = "false"
+    )
     @KafkaListener(
             topics = "payment.processed",
             groupId = "webhook-service",

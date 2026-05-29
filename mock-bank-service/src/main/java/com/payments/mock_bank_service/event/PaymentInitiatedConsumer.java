@@ -5,7 +5,10 @@ import com.payments.mock_bank_service.dto.BankPaymentResponse;
 import com.payments.mock_bank_service.service.BankPaymentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.kafka.annotation.BackOff;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.annotation.RetryableTopic;
+import org.springframework.kafka.retrytopic.TopicSuffixingStrategy;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -16,6 +19,16 @@ public class PaymentInitiatedConsumer {
     private final BankPaymentService bankPaymentService;
     private final PaymentProcessedProducer paymentProcessedProducer;
 
+    @RetryableTopic(
+            attempts = "3",
+            backOff = @BackOff(
+                    delay = 2000,
+                    multiplier = 2.0
+            ),
+            dltTopicSuffix = ".DLT",
+            topicSuffixingStrategy = TopicSuffixingStrategy.SUFFIX_WITH_INDEX_VALUE,
+            autoStartDltHandler = "false"
+    )
     @KafkaListener(topics = "payment.initiated", groupId = "mock-bank-group")
     public void consume(PaymentInitiatedEvent event) {
         log.info("Received payment initiated event: {}" , event);

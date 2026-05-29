@@ -25,3 +25,31 @@ logging:
     root: INFO
   file:
     name: logs/webhook-service.log
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      webhookDelivery:
+        registerHealthIndicator: true
+        slidingWindowSize: 5
+        failureRateThreshold: 50.0
+        waitDurationInOpenState: 15000
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+
+  timelimiter:
+    instances:
+      webhookDelivery:
+        timeoutDuration: 5s
+        cancelRunningFuture: true
+
+  retry:
+    instances:
+      webhookDelivery:
+        maxAttempts: 3
+        waitDuration: 1000
+        retryExceptions:
+          - java.net.SocketTimeoutException
+          - java.net.ConnectException
+          - org.springframework.web.client.ResourceAccessException
+          - java.io.IOException

@@ -73,6 +73,7 @@ services:
     volumes:
       - kafka_data:/var/lib/kafka/data
 
+
 volumes:
   postgres_data:
   redis_data:
