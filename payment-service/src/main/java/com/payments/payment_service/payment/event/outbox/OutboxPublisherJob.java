@@ -22,6 +22,7 @@ public class OutboxPublisherJob {
     private final PaymentEventProducer paymentEventProducer;
     private final ObjectMapper objectMapper;
     private final LockService lockService;
+
     @Scheduled(fixedRate = 5000)
     @Transactional
     public void publishPendingEvents() {
@@ -62,7 +63,9 @@ public class OutboxPublisherJob {
                         outboxEvent.getPayload(),
                         PaymentInitiatedEvent.class
                 );
-                paymentEventProducer.publishPaymentInitiated(event);
+                paymentEventProducer
+                        .publishPaymentInitiated(event)
+                        .get();
             }
 
             outboxEvent.setStatus(EventStatus.SUCCESS);
@@ -71,7 +74,7 @@ public class OutboxPublisherJob {
 
         } catch (Exception e) {
             log.error("Failed to publish outbox event {}", outboxEvent.getEventId(), e);
-            outboxEvent.setStatus(EventStatus.FAILED);
+            outboxEvent.setStatus(EventStatus.PENDING);
             outboxRepository.save(outboxEvent);
         }
     }
