@@ -183,7 +183,7 @@
 ---
 
 ## Phase 5 — Resilience & Fault Tolerance
-**Status:** 🔵 Up Next
+**Status:** 🟢 Completed
 **Branch:** `phase/5-resilience`
 
 ### Planned work (draft)
@@ -200,14 +200,14 @@
 - DLT monitor should show stuck messages quickly
 
 ### Planned checklist
-- [ ] Resilience4j added
-- [ ] Circuit breaker on bank integration
-- [ ] Retry on transient failures
-- [ ] Timeout set for slow calls
-- [ ] DLT topics created
+- ✅ Resilience4j added
+- ✅ Circuit breaker on bank integration
+- ✅ Retry on transient failures
+- ✅ Timeout set for slow calls
+- ✅ DLT topics created
 - [ ] `GET /admin/dlt-messages` added
-- [ ] Circuit breaker behavior tested
-- [ ] Recovery after service restart verified
+- ✅ Circuit breaker behavior tested
+- ✅ Recovery after service restart verified
 
 ### Decisions
 | Decision | Reason |
@@ -217,6 +217,10 @@
 | 3 retries with 500ms backoff | Handle transient failures without flood retrying |
 | 3s timeout | Fail fast on slow bank response |
 | DLT monitor | Operational visibility for failed message recovery |
+
+### Implementation differences and decisions:
+Why @RetryableTopic Instead of @Retry for Consumers: Payments are safety-critical and cannot afford message loss mid-retry. @RetryableTopic persists retry attempts in Kafka topics, surviving application crashes, while @Retry keeps retries in-memory only. Additionally, @RetryableTopic provides native DLT integration for automatic dead-letter routing after exhausted retries, visibility into retry topics for monitoring, and eventual consistency guarantees via Kafka durability—essential for financial transactions.
+Why No Timeout on PaymentEventProducer: The Outbox Pattern already guarantees durability: payment data and outbox events are safely persisted in the database before any Kafka publish attempt, and OutboxPublisherJob retries every 5 seconds indefinitely until success. Adding @TimeLimiter would be redundant since it requires async return types (incompatible with void methods), @Retry already handles transient failures with backoff, and the Circuit Breaker detects Kafka broker outages anyway. The combination of database durability + Circuit Breaker + Retry is sufficient without timeout.
 
 ---
 

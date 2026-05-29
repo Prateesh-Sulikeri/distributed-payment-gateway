@@ -73,7 +73,6 @@ public class PaymentServiceImpl implements PaymentService {
                                         .createdAt(payment.getCreatedAt())
                                         .build();
 
-//                        paymentEventProducer.publishPaymentInitiated(event);
                         OutboxEvent outboxEvent = OutboxEvent.builder()
                                 .eventType(EventType.PAYMENT_INITIATED)
                                 .payload(objectMapper.writeValueAsString(event))

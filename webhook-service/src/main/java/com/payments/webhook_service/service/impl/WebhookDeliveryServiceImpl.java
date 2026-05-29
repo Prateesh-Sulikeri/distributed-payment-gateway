@@ -7,6 +7,9 @@ import com.payments.webhook_service.mapper.WebhookMapper;
 import com.payments.webhook_service.repository.WebhookDeliveryRepository;
 import com.payments.webhook_service.service.WebhookDeliveryService;
 import com.payments.webhook_service.type.WebhookDeliveryStatus;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
+import io.github.resilience4j.timelimiter.annotation.TimeLimiter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -32,6 +35,7 @@ public class WebhookDeliveryServiceImpl implements WebhookDeliveryService {
     private final RestTemplate restTemplate;
     private final WebhookMapper webhookMapper;
 
+    @CircuitBreaker(name = "webhookDelivery", fallbackMethod = "webhookDeliveryFallback")
     @Override
     public void deliverWebhook(WebhookDelivery delivery) {
         try {
@@ -63,7 +67,13 @@ public class WebhookDeliveryServiceImpl implements WebhookDeliveryService {
             // Network error, timeout, etc.
             log.warn("Webhook {} delivery failed: {}", delivery.getId(), e.getMessage());
             handleDeliveryFailure(delivery, e.getMessage());
+            throw e;
         }
+    }
+
+    public  void webhookDeliveryFallback(WebhookDelivery delivery, Exception ex) {
+        log.error("Webhook {} delivery failed - circuit open or timeout. Error: {}",
+                delivery.getId(), ex.getMessage());
     }
 
     private void handleDeliveryFailure(WebhookDelivery delivery, String errorMessage) {
