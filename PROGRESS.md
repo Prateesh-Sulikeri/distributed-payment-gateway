@@ -225,7 +225,7 @@ Why No Timeout on PaymentEventProducer: The Outbox Pattern already guarantees du
 ---
 
 ## Phase 6 — Settlement Service
-**Status:** ⬜ Not Started
+**Status:** 🟡 In Progress
 **Branch:** `phase/6-settlement`
 
 ### Planned work (draft)

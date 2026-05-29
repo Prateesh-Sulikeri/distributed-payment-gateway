@@ -15,9 +15,9 @@
 | mock-bank-service | 8081 | Simulates bank processing | 🟢 Completed |
 | merchant-service | 8082 | Merchant registration & API keys | 🟢 Completed |
 | webhook-service | 8083 | Merchant webhook notifications | 🟢 Completed |
-| settlement-service | TBD | End-of-day batch settlement | 🔵 Up next |
+| settlement-service | 8084 | End-of-day batch settlement | 🟡 In Progress |
 | auth-service | TBD | Centralized authentication | ⬜ Planned |
-| api-gateway | TBD | Single entry point | ⬜ Planned |
+| api-gateway | TBD | Single entry point | 🔵 Up Next |
 
 ## Tech Stack
 
