@@ -16,10 +16,10 @@ import java.util.Map;
 public class KafkaProducerConfig {
 
     @Bean
-    public ProducerFactory<String, PaymentInitiatedEvent> producerFactory(KafkaProperties kafkaProperties) {
+    public ProducerFactory<String, Object> producerFactory(KafkaProperties kafkaProperties) {
         Map<String, Object> config = kafkaProperties.buildProducerProperties();
 
-        JacksonJsonSerializer<PaymentInitiatedEvent> serializer =
+        JacksonJsonSerializer<Object> serializer =
                 new JacksonJsonSerializer<>();
 
         serializer.setAddTypeInfo(false);
@@ -32,8 +32,8 @@ public class KafkaProducerConfig {
     }
 
     @Bean
-    public KafkaTemplate<String, PaymentInitiatedEvent> kafkaTemplate(
-            ProducerFactory<String, PaymentInitiatedEvent> producerFactory
+    public KafkaTemplate<String, Object> kafkaTemplate(
+            ProducerFactory<String, Object> producerFactory
     ) {
         return new KafkaTemplate<>(producerFactory);
     }
