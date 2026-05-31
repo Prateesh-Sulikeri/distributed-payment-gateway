@@ -29,7 +29,7 @@ public class PaymentInitiatedEvent {
 
     private String description;
 
-    private String merchantId;
+    private UUID merchantId;
 
     private Instant createdAt;
 }

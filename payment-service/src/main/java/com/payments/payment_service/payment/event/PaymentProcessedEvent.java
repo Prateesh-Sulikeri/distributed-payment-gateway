@@ -20,5 +20,5 @@ public class PaymentProcessedEvent {
 
     private FailureReason failureReason;
 
-    private String merchantId;
+    private UUID merchantId;
 }
