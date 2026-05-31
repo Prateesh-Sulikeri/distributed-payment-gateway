@@ -46,8 +46,8 @@ public class ApiKeyValidationFilter extends OncePerRequestFilter {
             return;
         }
 
-        request.setAttribute("merchantId", merchant.get().getMerchantId());
-        log.info("Set merchantId in request: {}", merchant.get().getMerchantId());
+        request.setAttribute("merchantId", merchant.get().getMerchantId().toString());
+        log.info("Set merchantId in request: {}", merchant.get().getMerchantId().toString());
         request.setAttribute("merchant", merchant.get());
         log.info("Set merchant in request: {}", merchant.get());
 

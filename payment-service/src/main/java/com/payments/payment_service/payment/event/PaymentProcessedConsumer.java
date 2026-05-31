@@ -18,7 +18,6 @@ import org.springframework.stereotype.Component;
 public class PaymentProcessedConsumer {
 
     private final PaymentRepository paymentRepository;
-    private final PaymentSucceededProducer paymentSucceededProducer;
 
     @RetryableTopic(
             attempts = "3",
@@ -57,39 +56,23 @@ public class PaymentProcessedConsumer {
 
                         payment.setStatus(PaymentStatus.SUCCESS);
 
-                        paymentRepository.save(payment);
-                        PaymentSucceededEvent succeededEvent = PaymentSucceededEvent.builder()
-                                .paymentId(payment.getId())
-                                .merchantId(payment.getMerchantId())
-                                .amount(payment.getAmount())
-                                .currency(payment.getCurrency())
-                                .createdAt(payment.getCreatedAt())
-                                .build();
-
-                        paymentSucceededProducer.publishPaymentSucceeded(succeededEvent)
-                                .whenComplete((result, ex) -> {
-                                    if (ex != null) {
-                                        log.error("Failed to publish PaymentSucceededEvent for paymentId={}"
-                                        ,succeededEvent.paymentId(), ex);
-                                        return;
-                                    }
-                                    log.info("Published a PaymentSucceededEvent with paymentId={}", succeededEvent.paymentId());
-                                });
                     } else {
 
                         payment.setStatus(PaymentStatus.FAILED);
                         payment.setFailureReason(
                                 event.getFailureReason().name()
                         );
-
-                        paymentRepository.save(payment);
                     }
+
+                    paymentRepository.save(payment);
 
                     log.info(
                             "Updated payment status for paymentId={} to {}",
                             payment.getId(),
                             payment.getStatus()
                     );
+
+
                 });
     }
 }

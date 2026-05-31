@@ -56,7 +56,7 @@ public class PaymentController {
             )
             @RequestHeader("Idempotency-Key") String idempotencyKey
     ) {
-        UUID merchantId = (UUID) httpRequest.getAttribute("merchantId");
+        String merchantId = (String) httpRequest.getAttribute("merchantId");
         log.info("Retrieved merchantId from request: {}", merchantId);
         return ResponseEntity.accepted().body(paymentService.createPayment(request, idempotencyKey, merchantId));
     }

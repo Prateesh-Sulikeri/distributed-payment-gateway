@@ -41,7 +41,7 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Transactional
     @Override
-    public PaymentResponse createPayment(PaymentRequest request, String idempotencyKey, UUID merchantId) {
+    public PaymentResponse createPayment(PaymentRequest request, String idempotencyKey, String merchantId) {
 
         if (idempotencyKey == null || idempotencyKey.isBlank())
             throw new IllegalArgumentException("Idempotency-Key is required");

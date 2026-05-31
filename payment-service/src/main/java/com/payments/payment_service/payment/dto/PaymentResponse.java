@@ -56,7 +56,7 @@ public class PaymentResponse {
     private String failureReason;
 
     @Schema(description = "Unique identification of merchant making the payment request")
-    private UUID merchantId;
+    private String merchantId;
 
     @JsonSerialize(using = InstantSerializer.class)
     @JsonDeserialize(using = InstantDeserializer.class)

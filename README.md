@@ -15,9 +15,9 @@
 | mock-bank-service | 8081 | Simulates bank processing | 🟢 Completed |
 | merchant-service | 8082 | Merchant registration & API keys | 🟢 Completed |
 | webhook-service | 8083 | Merchant webhook notifications | 🟢 Completed |
-| settlement-service | 8084 | End-of-day batch settlement | 🟢 Completed |
+| settlement-service | TBD | End-of-day batch settlement | 🔵 Up next |
 | auth-service | TBD | Centralized authentication | ⬜ Planned |
-| api-gateway | TBD | Single entry point | 🔵 Up Next |
+| api-gateway | TBD | Single entry point | ⬜ Planned |
 
 ## Tech Stack
 
@@ -58,8 +58,12 @@ cp payment-service/.env.example payment-service/.env
 # Start infrastructure
 docker compose up -d
 
-# Start the individual services via intelliJ / IDE of your choice  or use 
-cd service-name
+# Start Payment Service
+cd payment-service
+./gradlew bootRun
+
+# Start Mock Bank Service (separate terminal)
+cd mock-bank-service
 ./gradlew bootRun
 ```
 
@@ -67,7 +71,12 @@ cd service-name
 
 > Full API documentation via Swagger will be available at `/swagger-ui.html` on each service upon project completion.
 
-TABLE WILL BE ADDED DURING PHASE 7 IMPLEMENTATION
+| Method | Endpoint | Service | Description |
+|---|---|---|---|
+| POST | `/auth/token` | payment-service | Get JWT token |
+| POST | `/api/v1/payments` | payment-service | Create payment |
+| GET | `/api/v1/payments/{id}` | payment-service | Get payment by ID |
+| POST | `/bank/process` | mock-bank-service | Process payment (internal) |
 
 ## Project Progress
 

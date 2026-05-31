@@ -9,7 +9,7 @@ import org.springframework.data.domain.Pageable;
 import java.util.UUID;
 
 public interface PaymentService {
-    public PaymentResponse createPayment(PaymentRequest request, String idempotencyKey, UUID merchantId);
+    public PaymentResponse createPayment(PaymentRequest request, String idempotencyKey, String merchantId);
     public Page<PaymentResponse> getAllPayments(int page, int size);
     public PaymentResponse getPaymentById(UUID id);
     public Page<PaymentResponse> getPaymentByStatus(PaymentStatus status, Pageable pageable);

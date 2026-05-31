@@ -225,7 +225,7 @@ Why No Timeout on PaymentEventProducer: The Outbox Pattern already guarantees du
 ---
 
 ## Phase 6 — Settlement Service
-**Status:** 🟢 Completed
+**Status:** ⬜ Not Started
 **Branch:** `phase/6-settlement`
 
 ### Planned work (draft)
@@ -245,16 +245,15 @@ Why No Timeout on PaymentEventProducer: The Outbox Pattern already guarantees du
 - Settlement record needs merchant, date, total, count, status
 
 ### Planned checklist
-- ✅ Settlement Service started
-- ✅ Flyway table migration added
-- ✅ Spring Batch job configured
-- ✅ Chunk size 100 implemented
-- ✅ Daily cron trigger added
-- ✅ Idempotent rerun behavior verified
+- [ ] Settlement Service started
+- [ ] Flyway table migration added
+- [ ] Spring Batch job configured
+- [ ] Chunk size 100 implemented
+- [ ] Daily cron trigger added
+- [ ] Idempotent rerun behavior verified
 - [ ] `GET /settlements?merchantId=X&date=Y` added
-- ✅ Payments marked SETTLED after batch
+- [ ] Payments marked SETTLED after batch
 - [ ] Manual trigger endpoint added
-- [ ] Outbox pattern included for payment.succeeded flow
 
 ### Decisions
 | Decision | Reason |
@@ -268,7 +267,7 @@ Why No Timeout on PaymentEventProducer: The Outbox Pattern already guarantees du
 ---
 
 ## Phase 7 — Observability & Ops
-**Status:** 🔵 Up next
+**Status:** ⬜ Not Started
 **Branch:** `phase/7-polish`
 
 ### Planned work (draft)

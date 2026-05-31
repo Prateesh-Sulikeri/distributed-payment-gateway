@@ -51,8 +51,8 @@ public class Payment {
     @Column(name = "failure_reason", length = 500 )
     private String failureReason;
 
-    @Column(name = "merchant_id", nullable = false)
-    private UUID merchantId;
+    @Column(nullable = false)
+    private String merchantId;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
