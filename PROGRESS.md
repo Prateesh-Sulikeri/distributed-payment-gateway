@@ -268,7 +268,7 @@ Why No Timeout on PaymentEventProducer: The Outbox Pattern already guarantees du
 ---
 
 ## Phase 7 — Observability & Ops
-**Status:** 🔵 Up next
+**Status:** 🟡 In Progress
 **Branch:** `phase/7-polish`
 
 ### Planned work (draft)
