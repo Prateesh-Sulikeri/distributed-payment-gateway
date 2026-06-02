@@ -1,0 +1,13 @@
+server:
+  port: 9000
+
+spring:
+  application:
+    name: api-gateway
+
+# Optional: expose actuator to inspect routes at runtime
+management:
+  endpoints:
+    web:
+      exposure:
+        include: gateway, health

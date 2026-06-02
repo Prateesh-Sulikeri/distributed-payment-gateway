@@ -17,7 +17,7 @@
 | webhook-service | 8083 | Merchant webhook notifications | 🟢 Completed |
 | settlement-service | 8084 | End-of-day batch settlement | 🟢 Completed |
 | auth-service | TBD | Centralized authentication | ⬜ Planned |
-| api-gateway | 8085 | Single entry point | 🟡 In Progress |
+| api-gateway | 9000 | Single entry point | 🟡 In Progress |
 
 ## Tech Stack
 
