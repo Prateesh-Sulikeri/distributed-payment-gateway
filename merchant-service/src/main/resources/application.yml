@@ -1,21 +1,39 @@
 server:
-  port: ${MERCHANT_PORT:8082}
+  port: ${SERVER_PORT:8082}
+  shutdown: graceful
 
 spring:
   datasource:
-    url: ${MERCHANT_DB_URL}
-    username: ${MERCHANT_DB_USERNAME}
-    password: ${MERCHANT_DB_PASSWORD}
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
   jpa:
     hibernate:
       ddl-auto: validate
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
   flyway:
     locations: classpath:db/migration
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, prometheus
+  endpoint:
+    health:
+      show-details: always
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: merchant-service
+    description: Merchant registration and API-key issuance/validation
 
 logging:
   level:

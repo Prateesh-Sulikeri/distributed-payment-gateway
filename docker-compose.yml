@@ -11,6 +11,12 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U payment_user -d payment_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
 
   merchant-db:
     image: postgres:16
@@ -23,6 +29,12 @@ services:
       - "5433:5432"
     volumes:
       - merchant_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U merchant_user -d merchant_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
 
   webhook-db:
     image: postgres:16
@@ -35,6 +47,12 @@ services:
       - "5434:5432"
     volumes:
       - webhook_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U webhook_user -d webhook_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
 
   settlement-db:
     image: postgres:16
@@ -47,6 +65,12 @@ services:
       - "5435:5432"
     volumes:
       - settlement_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U settlement_user -d settlement_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
@@ -55,6 +79,12 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.6.0
@@ -67,7 +97,15 @@ services:
     volumes:
       - zookeeper_data:/var/lib/zookeeper/data
       - zookeeper_log:/var/lib/zookeeper/log
+    restart: unless-stopped
 
+  # Dual-listener setup is required for Docker networking: app containers reach
+  # Kafka via the internal `kafka:29092` (PLAINTEXT) advertised name, while
+  # anything running on the host (e.g. a service started via `bootRun` outside
+  # Docker, or a local kafka-console-consumer) still reaches it via
+  # `localhost:9092` (PLAINTEXT_HOST). Before this change KAFKA_ADVERTISED_LISTENERS
+  # only advertised `localhost:9092`, which containers cannot resolve to the
+  # broker's own container.
   kafka:
     image: confluentinc/cp-kafka:7.6.0
     container_name: payment_kafka
@@ -78,12 +116,178 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
     volumes:
       - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 30s
+    restart: unless-stopped
+
+  # One-shot: creates payment.initiated / payment.processed / payment.succeeded
+  # (+ their .DLT topics) then exits. KAFKA_AUTO_CREATE_TOPICS_ENABLE=false above
+  # means nothing else will create them. See scripts/provision_kafka_topics.py —
+  # the same script/image can be pointed at any bootstrap-servers (e.g. AWS MSK)
+  # by overriding KAFKA_BOOTSTRAP_SERVERS.
+  kafka-topic-init:
+    build:
+      context: ./scripts
+      dockerfile: Dockerfile
+    container_name: kafka_topic_init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    restart: "no"
+
+  payment-service:
+    build:
+      context: ./payment-service
+      dockerfile: Dockerfile
+    container_name: payment-service
+    ports:
+      - "8080:8080"
+    environment:
+      SERVER_PORT: 8080
+      SPRING_PROFILES_ACTIVE: dev
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: payment_db
+      DB_USER: payment_user
+      DB_PASSWORD: payment_pass
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      MERCHANT_SERVICE_URL: http://merchant-service:8082
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka-topic-init:
+        condition: service_completed_successfully
+      merchant-service:
+        condition: service_started
+    restart: unless-stopped
+
+  mock-bank-service:
+    build:
+      context: ./mock-bank-service
+      dockerfile: Dockerfile
+    container_name: mock-bank-service
+    ports:
+      - "8081:8081"
+    environment:
+      SERVER_PORT: 8081
+      SPRING_PROFILES_ACTIVE: dev
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    depends_on:
+      kafka-topic-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  merchant-service:
+    build:
+      context: ./merchant-service
+      dockerfile: Dockerfile
+    container_name: merchant-service
+    ports:
+      - "8082:8082"
+    environment:
+      SERVER_PORT: 8082
+      SPRING_PROFILES_ACTIVE: dev
+      DB_HOST: merchant-db
+      DB_PORT: 5432
+      DB_NAME: merchant_db
+      DB_USER: merchant_user
+      DB_PASSWORD: merchant_pass
+    depends_on:
+      merchant-db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  webhook-service:
+    build:
+      context: ./webhook-service
+      dockerfile: Dockerfile
+    container_name: webhook-service
+    ports:
+      - "8083:8083"
+    environment:
+      SERVER_PORT: 8083
+      SPRING_PROFILES_ACTIVE: dev
+      DB_HOST: webhook-db
+      DB_PORT: 5432
+      DB_NAME: webhook_db
+      DB_USER: webhook_user
+      DB_PASSWORD: webhook_pass
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      MERCHANT_SERVICE_URL: http://merchant-service:8082
+    depends_on:
+      webhook-db:
+        condition: service_healthy
+      kafka-topic-init:
+        condition: service_completed_successfully
+      merchant-service:
+        condition: service_started
+    restart: unless-stopped
+
+  settlement-service:
+    build:
+      context: ./settlement-service
+      dockerfile: Dockerfile
+    container_name: settlement-service
+    ports:
+      - "8084:8084"
+    environment:
+      SERVER_PORT: 8084
+      SPRING_PROFILES_ACTIVE: dev
+      DB_HOST: settlement-db
+      DB_PORT: 5432
+      DB_NAME: settlement_db
+      DB_USER: settlement_user
+      DB_PASSWORD: settlement_pass
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    depends_on:
+      settlement-db:
+        condition: service_healthy
+      kafka-topic-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  gateway-service:
+    build:
+      context: ./gateway-service
+      dockerfile: Dockerfile
+    container_name: gateway-service
+    ports:
+      - "9000:9000"
+    environment:
+      SERVER_PORT: 9000
+      SPRING_PROFILES_ACTIVE: dev
+      PAYMENT_SERVICE_URL: http://payment-service:8080
+      MERCHANT_SERVICE_URL: http://merchant-service:8082
+      WEBHOOK_SERVICE_URL: http://webhook-service:8083
+      SETTLEMENT_SERVICE_URL: http://settlement-service:8084
+    depends_on:
+      payment-service:
+        condition: service_started
+      merchant-service:
+        condition: service_started
+      webhook-service:
+        condition: service_started
+      settlement-service:
+        condition: service_started
+    restart: unless-stopped
 
 
 volumes:

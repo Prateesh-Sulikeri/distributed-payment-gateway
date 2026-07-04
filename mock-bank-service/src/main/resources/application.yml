@@ -1,11 +1,14 @@
 spring:
   application:
-  name: mock-bank-service
+    name: mock-bank-service
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
 
 server:
-  port: 8081
+  port: ${SERVER_PORT:8081}
+  shutdown: graceful
 
 
 logging:
@@ -26,6 +29,33 @@ logging:
 
 
 bank:
-  success-rate: 0.8
-  min-latency-ms: 100
-  max-latency-ms: 500
+  card:
+    success-rate: 0.85
+    min-latency-ms: 200
+    max-latency-ms: 500
+  upi:
+    success-rate: 0.92
+    min-latency-ms: 50
+    max-latency-ms: 150
+  net-banking:
+    success-rate: 0.78
+    min-latency-ms: 1000
+    max-latency-ms: 3000
+
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, prometheus
+  endpoint:
+    health:
+      show-details: always
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: mock-bank-service
+    description: Bank/card-network processing simulator

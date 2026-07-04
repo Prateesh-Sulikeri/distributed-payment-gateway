@@ -1,6 +1,5 @@
 package com.payments.mock_bank_service.service.impl;
 
-import com.payments.mock_bank_service.config.BankConfig;
 import com.payments.mock_bank_service.dto.BankPaymentRequest;
 import com.payments.mock_bank_service.dto.BankPaymentResponse;
 import com.payments.mock_bank_service.processor.PaymentProcessor;

@@ -1,0 +1,9 @@
+spring:
+  jpa:
+    show-sql: true
+
+logging:
+  level:
+    root: INFO
+    com.payments.payment_service: DEBUG
+    org.apache.kafka: WARN

@@ -1,0 +1,36 @@
+server:
+  port: ${SERVER_PORT:9000}
+  shutdown: graceful
+
+spring:
+  application:
+    name: api-gateway
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
+payment-service:
+  url: ${PAYMENT_SERVICE_URL:http://localhost:8080}
+merchant-service:
+  url: ${MERCHANT_SERVICE_URL:http://localhost:8082}
+webhook-service:
+  url: ${WEBHOOK_SERVICE_URL:http://localhost:8083}
+settlement-service:
+  url: ${SETTLEMENT_SERVICE_URL:http://localhost:8084}
+
+# Actuator: exposed for runtime route inspection and observability (health/info/metrics/prometheus/gateway)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, prometheus, gateway
+  endpoint:
+    health:
+      show-details: always
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: gateway-service
+    description: Single entry point / reverse proxy for the payment gateway system

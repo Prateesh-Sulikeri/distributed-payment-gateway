@@ -1,0 +1,9 @@
+logging:
+  level:
+    root: INFO
+    com.payments: INFO
+
+management:
+  endpoint:
+    health:
+      show-details: always
