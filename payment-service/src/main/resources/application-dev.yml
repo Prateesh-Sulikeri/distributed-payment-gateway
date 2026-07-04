@@ -4,4 +4,6 @@ spring:
 
 logging:
   level:
-    root: DEBUG
+    root: INFO
+    com.payments.payment_service: DEBUG
+    org.apache.kafka: WARN

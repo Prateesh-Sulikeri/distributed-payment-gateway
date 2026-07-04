@@ -1,3 +1,4 @@
 logging:
   level:
-    root: DEBUG
+    root: INFO
+    com.payment.gateway_service: DEBUG

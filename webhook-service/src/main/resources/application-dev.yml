@@ -1,3 +1,5 @@
 logging:
   level:
-    root: DEBUG
+    root: INFO
+    com.payments.webhook_service: DEBUG
+    org.apache.kafka: WARN

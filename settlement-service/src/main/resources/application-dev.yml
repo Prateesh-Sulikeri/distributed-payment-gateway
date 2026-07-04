@@ -1,9 +1,10 @@
 logging:
   level:
-    root: DEBUG
+    root: INFO
     com.payments: DEBUG
     org.springframework.web: INFO
     org.hibernate.SQL: WARN
+    org.apache.kafka: WARN
 
 management:
   endpoint:
