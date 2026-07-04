@@ -1,5 +1,6 @@
 package com.payment.gateway_service.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.function.RouterFunction;
@@ -12,30 +13,46 @@ import static org.springframework.cloud.gateway.server.mvc.handler.HandlerFuncti
 @Configuration
 public class GatewayRoutes {
 
+    private final String paymentServiceUrl;
+    private final String merchantServiceUrl;
+    private final String webhookServiceUrl;
+    private final String settlementServiceUrl;
+
+    public GatewayRoutes(
+            @Value("${payment-service.url}") String paymentServiceUrl,
+            @Value("${merchant-service.url}") String merchantServiceUrl,
+            @Value("${webhook-service.url}") String webhookServiceUrl,
+            @Value("${settlement-service.url}") String settlementServiceUrl) {
+        this.paymentServiceUrl = paymentServiceUrl;
+        this.merchantServiceUrl = merchantServiceUrl;
+        this.webhookServiceUrl = webhookServiceUrl;
+        this.settlementServiceUrl = settlementServiceUrl;
+    }
+
     @Bean
     RouterFunction<ServerResponse> gatewayRouterFunctions() {
 
         return route("payment-service")
                 .GET("/payments/**", http())
                 .POST("/payments/**", http())
-                .before(uri("http://localhost:8080"))
+                .before(uri(paymentServiceUrl))
                 .build()
                 .and(route("merchant-service")
                         .GET("/merchants/**", http())
                         .POST("/merchants/**", http())
-                        .before(uri("http://localhost:8082"))
+                        .before(uri(merchantServiceUrl))
                         .build())
 
                 .and(route("webhook-service")
                         .GET("/webhooks/**", http())
                         .POST("/webhooks/**", http())
-                        .before(uri("http://localhost:8083"))
+                        .before(uri(webhookServiceUrl))
                         .build())
 
                 .and(route("settlement-service")
                         .GET("/settlements/**", http())
                         .POST("/settlements/**", http())
-                        .before(uri("http://localhost:8084"))
+                        .before(uri(settlementServiceUrl))
                         .build());
     }
 }

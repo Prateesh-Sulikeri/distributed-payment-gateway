@@ -87,30 +87,43 @@ Circuit breaker config (`webhookDelivery` instance): `slidingWindowSize=5`, `fai
 
 No create/submit endpoint — `WebhookDeliveryRequest` DTO exists but is unused dead code. No OpenAPI/Swagger annotations anywhere in this service (unlike payment-service/mock-bank-service).
 
-## Data model (Flyway `V1__create_webhook_deliveries_table.sql`)
+## Data model (Flyway `V1__create_webhook_deliveries_table.sql`, `V2__fix_webhook_retry_index.sql`)
 
 ```
 webhook_deliveries: id, merchant_id, payment_id, webhook_url, payload (TEXT), status (PENDING/DELIVERED/FAILED/DEAD),
                      attempt_count, next_retry_at, last_error_message, created_at, updated_at, delivered_at
 indexes: idx_webhook_status, idx_webhook_merchant,
-         idx_webhook_retry ON (next_retry_at) WHERE status = 'PENDING'   -- partial index does NOT cover FAILED,
-                                                                          -- even though the retry job also queries
-                                                                          -- FAILED rows — minor index/query mismatch
+         idx_webhook_retry ON (next_retry_at) WHERE status IN ('PENDING', 'FAILED')   -- fixed in V2 (2026-07-04);
+                                                                          -- originally only covered PENDING even
+                                                                          -- though the retry job also queries
+                                                                          -- FAILED rows — see PENDING.md
 ```
 `ddl-auto: validate` — Flyway owns the schema.
 
-## Configuration (`application.yml`, single profile)
+## Configuration (`application.yml` + `application-{dev,sit,prod}.yml`, as of the Stage 4 infra/config refactor, 2026-07-04)
 
 ```yaml
-server.port: ${WEBHOOK_PORT:8083}
-spring.datasource: url/username/password from WEBHOOK_DB_URL/WEBHOOK_DB_USERNAME/WEBHOOK_DB_PASSWORD (no defaults — required)
+server.port: ${SERVER_PORT:8083}
+server.shutdown: graceful
+spring.lifecycle.timeout-per-shutdown-phase: 30s
+spring.datasource.url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}   # built from parts, not one URL var
+spring.datasource.username/password: ${DB_USER} / ${DB_PASSWORD}
 spring.kafka.bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
-logging.level: com.payments.webhook_service.job=WARN (quiets the 10s poll), root=INFO
+merchant-service.url: ${MERCHANT_SERVICE_URL:http://localhost:8082}   # MerchantServiceClient's @FeignClient url now reads this, no longer a hardcoded literal
+management.endpoints.web.exposure.include: health, info, metrics, prometheus
+management.endpoint.health.show-details: always (dev/sit) / never (prod, overridden in application-prod.yml)
+logging.level: com.payments.webhook_service.job=WARN (quiets the 10s poll), root=INFO (base; overridden per-profile: dev=DEBUG, sit=INFO, prod=WARN)
 resilience4j.circuitbreaker.instances.webhookDelivery: (see above)
 resilience4j.retry.instances.webhookDelivery: (configured but unused — see above)
 resilience4j.timelimiter.instances.webhookDelivery: (configured but unused — see above)
 ```
-`.env` also defines `KAFKA_PAYMENT_PROCESSED_TOPIC`, `KAFKA_WEBHOOK_TRIGGERED_TOPIC`, `PAYMENT_SERVICE_URL`, `WEBHOOK_MAX_RETRY_ATTEMPTS`, `WEBHOOK_INITIAL_RETRY_DELAY_SECONDS` — **none of these five are referenced anywhere in code** (topic name is a hardcoded string literal, retry constants are hardcoded, and webhook-service never calls payment-service directly). No `.env.example` is checked in for this service.
+`.env` now uses the cross-service-standard var names: `SERVER_PORT`, `SPRING_PROFILES_ACTIVE` (dev/sit/prod), `DB_HOST`/`DB_PORT`/`DB_NAME`/`DB_USER`/`DB_PASSWORD`, `KAFKA_BOOTSTRAP_SERVERS`, `MERCHANT_SERVICE_URL`. The previous `WEBHOOK_PORT`/`WEBHOOK_DB_URL`/`WEBHOOK_DB_USERNAME`/`WEBHOOK_DB_PASSWORD` names are gone, as are five dead vars that were never read by any code (`KAFKA_PAYMENT_PROCESSED_TOPIC`, `KAFKA_WEBHOOK_TRIGGERED_TOPIC`, `PAYMENT_SERVICE_URL`, `WEBHOOK_MAX_RETRY_ATTEMPTS`, `WEBHOOK_INITIAL_RETRY_DELAY_SECONDS` — topic name and retry constants are still hardcoded Java literals in code, only the misleading unused env vars were removed). A checked-in `.env.example` now exists mirroring the real required vars.
+
+**`idx_webhook_retry` index/query mismatch — fixed.** `V2__fix_webhook_retry_index.sql` drops and recreates the partial index as `ON webhook_deliveries (next_retry_at) WHERE status IN ('PENDING', 'FAILED')`, matching `WebhookRetryJob`'s actual query. Applied as a new additive migration (this repo's convention — see payment-service's `V1`...`V5`) rather than editing the shipped `V1` file in place.
+
+**Actuator** (`spring-boot-starter-actuator`, added in the Stage 4 pass) exposes `/actuator/health`, `/actuator/info`, `/actuator/metrics`, `/actuator/prometheus` — note `micrometer-registry-prometheus` is not yet a dependency, so `/actuator/prometheus` is exposed but not guaranteed to serve real Prometheus-format output yet.
+
+A multi-stage `Dockerfile` now exists at the service root (Gradle build stage + non-root JRE runtime stage, `/actuator/health`-based `HEALTHCHECK`) — this service is not yet added to root `docker-compose.yml` as a service definition (out of scope for this pass; see root CLAUDE.md).
 
 ## Known gaps (don't assume these work)
 
@@ -120,4 +133,4 @@ resilience4j.timelimiter.instances.webhookDelivery: (configured but unused — s
 - `@Retry`/`@TimeLimiter` Resilience4j config exists in YAML but isn't applied in code — only `@CircuitBreaker` is active.
 - No webhook signature/HMAC verification — merchants cannot cryptographically verify authenticity.
 - Only one test exists (`WebhookServiceApplicationTests`), and it's `@Disabled` — no active test coverage at all.
-- Several `.env` variables are entirely unused/misleading (see Configuration section) — don't assume editing them changes behavior.
+- (Resolved 2026-07-04) The `idx_webhook_retry` index/query mismatch and the 5 dead `.env` vars called out in earlier revisions of this doc are fixed/removed — see Configuration and Data model sections above.

@@ -30,7 +30,53 @@ Tracks outstanding work for this service, consolidated from `PROGRESS.md`, the o
 - Enforce `MerchantStatus` in `validateApiKey` — reject `SUSPENDED`/`INACTIVE` merchants explicitly, and add an endpoint (or extend `PUT /{id}`) to actually transition a merchant's status.
 - Add a `@ControllerAdvice`/`GlobalExceptionHandler` (mirroring payment-service's pattern) to map not-found/bad-id exceptions to proper `404`/`400` responses.
 - Support multiple concurrent API keys per merchant (e.g. a separate `merchant_api_keys` table keyed by merchant, each with its own status/expiry) so rotation can have a grace-period overlap instead of instantly invalidating the old key.
-- Publish merchant lifecycle events (`MerchantRegistered`, `MerchantStatusChanged`, `MerchantWebhookUrlUpdated`) to Kafka — this would let `payment-service`/`webhook-service` react to status changes without a synchronous Feign round-trip on every request, and would finally give the declared-but-unused Kafka dependency a purpose.
+- Publish merchant lifecycle events (`MerchantRegistered`, `MerchantStatusChanged`, `MerchantWebhookUrlUpdated`) to Kafka — this would let `payment-service`/`webhook-service` react to status changes without a synchronous Feign round-trip on every request, and would finally give merchant-service a reason to re-add `spring-boot-starter-kafka` (removed in the 2026-07-04 infra refactor below).
 - Add springdoc-openapi and annotate the controller, closing the Swagger gap relative to payment-service/mock-bank-service.
 - Add real tests: unit tests for `ApiKeyGenerator` (hash determinism, format), `MerchantServiceImpl` (status enforcement once added, partial-update semantics), and a `@WebMvcTest`/Testcontainers-backed integration test for the controller + Flyway schema.
 - Consider a constant-time comparison in `ApiKeyGenerator.verify()` (currently a plain `String.equals`) for defense-in-depth, even though the practical risk is low given API keys are high-entropy.
+
+## 2026-07-04 — Stage 4 Infra & Config Refactor
+
+### Issue
+merchant-service's `.env`/`application.yml` used service-prefixed DB var names (`MERCHANT_DB_URL`, `MERCHANT_PORT`), carried dead JWT/basic-auth vars, declared two unused dependencies (`spring-boot-starter-kafka`, `spring-security-crypto`), had no Spring profiles, no `.env.example`, no actuator/health endpoint, and no Dockerfile — all blockers for containerizing the service and deploying it consistently alongside the other five services.
+
+### Root Cause
+The service was originally built standalone against a shared local Postgres/Kafka stack with ad hoc env-var naming; production-readiness concerns (profiles, actuator, container image, standardized config keys) were never part of the original phase-by-phase build.
+
+### Solution
+- Renamed DB env vars to the unprefixed convention shared across all six services in this refactor: `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` (values preserved: `localhost:5433/merchant_db`, `merchant_user`/`merchant_pass`).
+- Renamed `MERCHANT_PORT` → `SERVER_PORT`.
+- Added `SPRING_PROFILES_ACTIVE=dev` to `.env`.
+- Deleted dead vars `JWT_SECRET`, `JWT_EXPIRATION`, `AUTH_USER_USERNAME`, `AUTH_USER_PASSWORD`, `AUTH_USER_ROLE` (confirmed unread by any code — root `application.yml` never had a `jwt:`/`auth:` block).
+- **Kept** `AUTH_ADMIN_USERNAME`/`AUTH_ADMIN_PASSWORD`/`AUTH_ADMIN_ROLE` verbatim, with a new comment marking them reserved for future admin auth on the currently-open management endpoints (see "Holistic gaps" above) — explicitly not wired to anything in this pass.
+- Removed `spring.kafka.bootstrap-servers` from `application.yml` and `KAFKA_BOOTSTRAP_SERVERS` from `.env`, and removed the `spring-boot-starter-kafka` line from `build.gradle` — confirmed via grep that zero Kafka imports/annotations exist anywhere in `src/`. **This removal is reversible**: the dependency will very likely need to come back verbatim once merchant lifecycle events (`MerchantRegistered`/`MerchantStatusChanged`/`MerchantWebhookUrlUpdated`, already listed above as a future-roadmap item) are implemented — it's a one-line re-add, not a design change.
+- Removed `spring-security-crypto` from `build.gradle` — confirmed via grep that no `org.springframework.security.crypto.*` import exists; hashing is 100% hand-rolled `java.security.MessageDigest` in `ApiKeyGenerator`. Also reversible if a future pass moves off hand-rolled SHA-256 to BCrypt/Argon2 (see "Additional Improvements" above re: constant-time comparison).
+- Created `.env.example` with placeholder values for every var actually read post-cleanup, including the reserved `AUTH_ADMIN_*` block with its comment.
+- Added `spring-boot-starter-actuator` and a `management:`/`info:` block to `application.yml` (health/info/metrics/prometheus exposed, health details always shown in dev, graceful shutdown with a 30s timeout-per-shutdown-phase).
+- Added `application-dev.yml` (DEBUG root logging), `application-sit.yml` (INFO), `application-prod.yml` (WARN root logging + `management.endpoint.health.show-details: never`).
+- Added a multi-stage `Dockerfile` (Gradle build stage on `eclipse-temurin:21-jdk-alpine`, non-root runtime on `eclipse-temurin:21-jre-alpine`, `/actuator/health` HEALTHCHECK).
+- Left `spring.jpa.hibernate.ddl-auto: validate` untouched (already correct — Flyway owns the schema).
+- No Spring Security filter chain, `@Valid` wiring, `MerchantStatus` enforcement, exception handling, or multi-API-key support was touched — all explicitly out of scope for this pass.
+
+### Files Modified
+- `merchant-service/.env` — rewritten (renamed vars, dropped dead JWT/user-auth vars, kept+commented `AUTH_ADMIN_*`, added `SPRING_PROFILES_ACTIVE`)
+- `merchant-service/.env.example` — new
+- `merchant-service/src/main/resources/application.yml` — datasource url/user/pass now built from `DB_HOST`/`DB_PORT`/`DB_NAME`/`DB_USER`/`DB_PASSWORD`; `server.port` from `SERVER_PORT`; removed `spring.kafka.*`; added `management:`/`info:` blocks, `server.shutdown: graceful`, `spring.lifecycle.timeout-per-shutdown-phase`
+- `merchant-service/src/main/resources/application-dev.yml` — new
+- `merchant-service/src/main/resources/application-sit.yml` — new
+- `merchant-service/src/main/resources/application-prod.yml` — new
+- `merchant-service/Dockerfile` — new, multi-stage build
+- `merchant-service/build.gradle` — added `spring-boot-starter-actuator`; removed `spring-boot-starter-kafka` and `spring-security-crypto`
+- `merchant-service/.claude/CLAUDE.md` — Configuration and Known-gaps/dead-dependency sections updated to reflect new env scheme and what was removed vs. reserved
+
+### Impact
+- **Runtime**: No behavior change to any endpoint — this is pure config/infra plumbing. `spring.datasource.url` resolves to the identical JDBC URL as before, just assembled from five vars instead of one.
+- **Deployment**: Service is now containerizable (Dockerfile added) and its `.env` follows the same unprefixed convention as the other five services, simplifying orchestration (docker-compose/ECS task defs) that inject per-service env files.
+- **Performance**: Negligible — one fewer autoconfigured Kafka producer/consumer bean graph at startup since the starter is gone; startup should be marginally faster.
+- **Security**: `/actuator` endpoints are now exposed (health/info/metrics/prometheus) with no auth in front of them, same as the rest of this service's surface today — this is a known, pre-existing gap (see "merchant-service's own endpoints have no authentication" above), not a new one introduced by this change. `prod` profile at least hides health details (`show-details: never`).
+- **Maintainability**: Fewer unused dependencies to reason about; `.env.example` gives new contributors a template that didn't exist before; profile split makes log verbosity/health exposure intent explicit per environment instead of implicit/undocumented.
+
+### Follow-up
+- Re-add `spring-boot-starter-kafka` when merchant lifecycle events are implemented (see "Additional Improvements" above) — do not treat its removal here as a decision against ever using Kafka in this service.
+- Once admin auth is implemented, lock down `/actuator/**` (at minimum `/actuator/env`, `/actuator/metrics`) behind it — currently only `health`/`info`/`metrics`/`prometheus` are exposed, but none are gated.
+- `docker-compose.yml` wiring for this service's container (build context, env-file, port mapping) is root-level/coordinator work, not done here.

@@ -38,3 +38,52 @@ Tracks outstanding work for this service, consolidated from `PROGRESS.md`, the o
 - Add a Testcontainers-based integration test suite (Postgres + Kafka + Redis) covering: idempotent payment creation under concurrent requests, the outbox publish/retry loop, and the `PaymentProcessedConsumer`'s duplicate-event guard.
 - Consider whether `payment.succeeded` needs outbox-level durability or whether an at-least-once-with-monitoring approach is an acceptable, cheaper trade-off — document the decision either way in the still-unwritten `DECISIONS.md`.
 - Add a Prometheus counter/timer around the outbox publish loop and Kafka consumer processing, ahead of the full Phase 7 observability push, so there's already a signal for "payments stuck in PENDING."
+
+## 2026-07-04 — Stage 4 Infra & Config Refactor
+
+### Issue
+
+`payment-service`'s config was not container/deployment-ready: dead JWT/auth and mock-bank config sat unused in `application.yml`/`.env`, the datasource was built from a single monolithic `DB_URL` instead of composable parts, the merchant-service Feign client hardcoded `http://localhost:8082`, there was no Actuator exposure beyond defaults, no graceful shutdown, no environment-specific profiles, and no Dockerfile — all blockers for the planned Docker/AWS deployment.
+
+### Root Cause
+
+The service was built incrementally across phases without a pass to reconcile config with what the code actually reads. JWT/auth config was inherited from an abandoned Phase-1 design and never deleted after Phase-3 API-key auth replaced it; `mock_bank.url` was left over from before the mock-bank integration became Kafka-only; `DB_URL` and the hardcoded Feign URL were never revisited once other services started needing container-friendly config.
+
+### Solution
+
+- Deleted the dead `jwt:`, `auth:`, and `mock_bank:` blocks from `application.yml`, and the corresponding `JWT_*`/`AUTH_*` variables from `.env`/`.env.example`. `ApiKeyValidationFilter` (the real, active auth mechanism) was not touched.
+- Replaced `DB_URL`/`DB_USERNAME`/`DB_PASSWORD` with `DB_HOST`/`DB_PORT`/`DB_NAME`/`DB_USER`/`DB_PASSWORD`; `spring.datasource.url` is now composed as `jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}`. Real credentials (`payment_user`/`payment_pass`/`payment_db`/`localhost:5432`) were preserved, just split into parts.
+- Added `SERVER_PORT` (`server.port: ${SERVER_PORT:8080}`) and `SPRING_PROFILES_ACTIVE=dev` to `.env`.
+- Externalized the merchant-service Feign base URL: `application.yml` now defines `merchant-service.url: ${MERCHANT_SERVICE_URL:http://localhost:8082}`, and `MerchantServiceClient` uses `@FeignClient(name = "merchant-service", url = "${merchant-service.url}")` instead of a literal. Added `MERCHANT_SERVICE_URL` to `.env`/`.env.example`.
+- Changed `spring.jpa.hibernate.ddl-auto` from `none` to `validate`. `./gradlew build -x test` passed cleanly after this change (the service's only test class is `@Disabled`, so this has not yet been exercised against a live Postgres instance with real schema — see Follow-up).
+- Added `spring-boot-starter-actuator` health/info/metrics/prometheus exposure, graceful shutdown (`server.shutdown: graceful`, `spring.lifecycle.timeout-per-shutdown-phase: 30s`), and `info.app.*` metadata to `application.yml`. `spring-boot-starter-actuator` was already a declared dependency in `build.gradle` — verified, not re-added.
+- Added `application-dev.yml` (DEBUG root logging, `show-sql: true`), `application-sit.yml` (INFO root logging), `application-prod.yml` (WARN root logging, `show-sql: false`, `management.endpoint.health.show-details: never`). `SPRING_PROFILES_ACTIVE` (set in `.env`) activates these automatically — no extra wiring.
+- Added a multi-stage `Dockerfile` (Alpine JDK 21 build stage → Alpine JRE 21 runtime stage, non-root `spring` user, `HEALTHCHECK` against `/actuator/health`). Verified `settings.gradle` and `gradle/wrapper/` exist before writing the `COPY` lines.
+- **Bonus improvement**: added a `.dockerignore` file (none existed). Without it, the Docker build context would include `.git`, `.gradle`, `build/`, `.idea`, `logs/`, and — notably — `.env` (which holds real DB credentials). Excluding these keeps the build context small and prevents `.env` from ever being copyable into an image layer by an unrelated future `COPY .` change. This is scaffolding-only: it changes nothing about how the app builds or runs, only what Docker sees as build context.
+
+### Files Modified
+
+- `payment-service/src/main/resources/application.yml`
+- `payment-service/src/main/resources/application-dev.yml` (new)
+- `payment-service/src/main/resources/application-sit.yml` (new)
+- `payment-service/src/main/resources/application-prod.yml` (new)
+- `payment-service/.env`
+- `payment-service/.env.example`
+- `payment-service/src/main/java/com/payments/payment_service/payment/client/MerchantServiceClient.java`
+- `payment-service/Dockerfile` (new)
+- `payment-service/.dockerignore` (new, bonus)
+- `payment-service/.claude/CLAUDE.md`
+- `payment-service/.claude/PENDING.md` (this file)
+
+### Impact
+- Runtime: No behavior change to request handling, Kafka flow, caching, or the auth filter. `ddl-auto: validate` will now fail startup loudly on a real schema/entity mismatch instead of silently ignoring it — this is a stricter but intentional change.
+- Deployment: Service is now containerizable (`Dockerfile`) and its config is fully env-var-driven with no hardcoded `localhost` URLs left in application code (Feign URL is now a property placeholder). `SPRING_PROFILES_ACTIVE` lets dev/sit/prod be selected purely via environment.
+- Performance: No change.
+- Security: Removed several unused secrets/credentials (`JWT_SECRET`, hardcoded default admin/user passwords `1234`) from `.env`/`.env.example` — these were inert but were still live-looking secrets sitting in a gitignored file; their removal reduces confusion and accidental copy-paste risk. `.dockerignore` additionally keeps `.env` out of any Docker build context.
+- Maintainability: `.env`/`.env.example` now match reality (no stale or missing keys), `application.yml` no longer mixes dead config with live config, and the merchant-service URL is a single property to change (or drop entirely once service discovery arrives) instead of a literal buried in a `@FeignClient` annotation.
+
+### Follow-up
+
+- `ddl-auto: validate` was verified only via `./gradlew compileJava` and `./gradlew build -x test` (both passed) — this service's only test class is `@Disabled`, so Hibernate's schema validation was never actually exercised against a live Postgres instance in this pass. Recommend a manual `bootRun` against the real `payment_db` (or re-enabling/writing a context-load test) before relying on this in CI.
+- Actuator's `prometheus` endpoint is listed in `management.endpoints.web.exposure.include` but `micrometer-registry-prometheus` is not yet a dependency — the endpoint won't actually register until that's added in the later observability phase (Phase 7 tracing/Prometheus/Grafana work, tracked in the root-level items above).
+- No tracing/correlation-ID propagation was added — still pending Micrometer+Zipkin per the existing Phase 7 backlog item above.

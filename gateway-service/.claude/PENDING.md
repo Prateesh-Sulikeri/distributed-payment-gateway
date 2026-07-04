@@ -39,3 +39,45 @@ This service is the least mature in the system (Phase 7, "In Progress") — most
 - Once tracing is added system-wide, make sure the gateway is where the trace ID originates/is guaranteed present on every proxied request, since it's the single entry point.
 - Add OpenAPI aggregation (or at minimum a documentation page linking to each downstream service's own `/v3/api-docs`) once Swagger exists on all six services.
 - Add integration tests that actually verify routing (e.g. WireMock stand-ins for the four downstream services, asserting the right target receives the forwarded request).
+
+## 2026-07-04 — Stage 4 Infra & Config Refactor
+
+### Issue
+`gateway-service` had no `.env`/`.env.example`, its route targets were hardcoded `localhost:<port>` string literals baked into `GatewayRoutes.java`, `server.port` was a fixed literal, only two actuator endpoints (`gateway`, `health`) were exposed, there were no environment-specific Spring profiles, and no Dockerfile existed — all blockers for containerizing this service or running it against non-localhost downstream services (e.g. in Docker Compose or AWS).
+
+### Root Cause
+The service was built as early-stage Phase 7 scaffolding (single-host dev setup only) with no config-driven deployment concerns addressed yet — this is the first infra/config pass it has received.
+
+### Solution
+- Refactored `GatewayRoutes` to take a 4-argument constructor (`paymentServiceUrl`, `merchantServiceUrl`, `webhookServiceUrl`, `settlementServiceUrl`), each bound via `@Value("${<service>.url}")`, and used those fields inside `.before(uri(...))` instead of string literals. Kept the existing WebMVC functional route-building DSL as-is (no rewrite to declarative `spring.cloud.gateway.routes` YAML, which is the reactive-gateway convention).
+- Added `payment-service.url`, `merchant-service.url`, `webhook-service.url`, `settlement-service.url` properties to `application.yml`, each `${ENV_VAR:default}`-driven so behavior is unchanged out-of-the-box.
+- Made `server.port` env-driven (`${SERVER_PORT:9000}`), added `server.shutdown: graceful` and `spring.lifecycle.timeout-per-shutdown-phase: 30s`.
+- Expanded actuator exposure to `health, info, metrics, prometheus, gateway`, set `management.endpoint.health.show-details: always` (dev-time default) and enabled `management.info.env.enabled`, plus static `info.app.*` metadata.
+- Added `application-dev.yml` (DEBUG root logging), `application-sit.yml` (INFO), `application-prod.yml` (WARN root logging, `health.show-details: never` to avoid leaking details in prod).
+- Created this service's first-ever `.env` and `.env.example` (identical content, no real secrets) and added a `.env`-ignoring / `.env.example`-allowing block to `.gitignore` (previously `.env` files were not gitignored at all in this service).
+- Added a multi-stage `Dockerfile` (`eclipse-temurin:21-jdk-alpine` build stage running `./gradlew bootJar -x test`, `eclipse-temurin:21-jre-alpine` runtime stage, non-root `spring` user, `/actuator/health`-based `HEALTHCHECK`).
+
+### Files Modified
+- `src/main/java/com/payment/gateway_service/config/GatewayRoutes.java` (constructor + `@Value` fields, replaced literal URIs)
+- `src/main/resources/application.yml` (env-driven port, 4 downstream URL properties, expanded actuator/info config, graceful shutdown)
+- `src/main/resources/application-dev.yml` (new)
+- `src/main/resources/application-sit.yml` (new)
+- `src/main/resources/application-prod.yml` (new)
+- `.env` (new)
+- `.env.example` (new)
+- `.gitignore` (added `.env` ignore / `.env.example` allow)
+- `Dockerfile` (new)
+- `.claude/CLAUDE.md` (Routing and Configuration sections updated to reflect config-driven targets, profiles, Dockerfile, `.env`)
+
+### Impact
+- **Runtime**: No behavioral change out-of-the-box — all new properties resolve to the same defaults (`localhost:8080/8082/8083/8084`, port `9000`) when no env vars are set.
+- **Deployment**: Route targets, port, and active profile can now be overridden per-environment via env vars or `.env`, and the service can be built into a container image via the new `Dockerfile` — both prerequisites for Docker Compose / AWS deployment. `docker-compose.yml` still has no service entry for this image (root-level, out of scope here).
+- **Performance**: Negligible — constructor injection of 4 strings adds no measurable overhead; graceful shutdown adds up to 30s to shutdown time under in-flight requests.
+- **Security**: `management.endpoint.health.show-details` is `always` by default (dev) but `never` under the `prod` profile, avoiding leaking internal health details in production. No auth/rate-limiting added (explicitly out of scope for this pass).
+- **Maintainability**: New downstream routes now follow a clear, consistent config-driven pattern instead of ad hoc string literals, and profile-specific logging levels make dev/sit/prod log verbosity intentional rather than uniform.
+
+### Follow-up
+- `docker-compose.yml` needs a service entry for `gateway-service` before the new `Dockerfile` can actually be exercised in the local stack (root-level file, out of scope for this pass).
+- `prometheus` is now listed in `management.endpoints.web.exposure.include` but the `micrometer-registry-prometheus` dependency is still not in `build.gradle` — the endpoint will 404 until that dependency is added.
+- Route targets are still plain HTTP URLs, not `lb://service-name` — migrating to Eureka/service-discovery-based URIs later only requires changing the 4 property values, not `GatewayRoutes.java`, per the design intent of this refactor.
+- No filters (auth, rate limiting, circuit breaker, retry) were added — still tracked as separate, later-phase items elsewhere in this file.

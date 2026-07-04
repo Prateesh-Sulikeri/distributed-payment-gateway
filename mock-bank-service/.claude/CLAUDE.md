@@ -22,7 +22,7 @@ Base package: `com.payments.mock_bank_service`.
 ## Architecture
 
 ```
-config/    KafkaConsumerConfig, KafkaProducerConfig, BankConfig (unused, see Known Gaps)
+config/    KafkaConsumerConfig, KafkaProducerConfig, BankConfig (nested per-method success-rate/latency, injected into the three processors)
 controller/ BankPaymentController — POST /bank/process (synchronous test entry point)
 dto/       BankPaymentRequest, BankPaymentResponse
 event/     PaymentInitiatedEvent (in), PaymentProcessedEvent (out),
@@ -32,12 +32,11 @@ processor/ PaymentProcessor (interface), AbstractPaymentProcessor (shared helper
 service/   BankPaymentService (interface) + impl — single orchestration point used by
            BOTH the REST controller and the Kafka consumer
 type/      PaymentMethod, CurrencyCode, TransactionStatus, FailureReason
-           (+ BankPaymentMethod — dead duplicate, see Known Gaps)
 ```
 
 `PaymentRouter` is a Strategy-pattern dispatcher: it holds an immutable `Map<PaymentMethod, PaymentProcessor>` built at construction from the three `@Component` processors, and `getProcessor()` throws `IllegalArgumentException` for unsupported methods. This is the extension point for adding a new payment method — add a new `PaymentProcessor` `@Component` and it's picked up automatically by the map-building constructor.
 
-## Simulation behavior (hardcoded per-processor constants, NOT read from config)
+## Simulation behavior (defaults; now genuinely configurable via `bank.*` YAML/env, see Configuration below)
 
 | Method | Success rate | Latency | Failure reasons (uniform random) |
 |---|---|---|---|
@@ -58,35 +57,44 @@ type/      PaymentMethod, CurrencyCode, TransactionStatus, FailureReason
 - **Produces** `payment.processed` via `PaymentProcessedProducer`, keyed by `paymentId.toString()` (preserves per-payment ordering).
 - Serialization: `JacksonJsonDeserializer`/`JacksonJsonSerializer`, producer sets `setAddTypeInfo(false)` (no `__TypeId__` header — consumers must deserialize against their own DTO shape). Consumer trusts all packages (`addTrustedPackages("*")`).
 - Flow: consumer builds a `BankPaymentRequest` from the inbound event → `BankPaymentService.process()` → builds `PaymentProcessedEvent` (copying `merchantId` from the **original inbound event**, not the response) → publishes.
-- Topic names are **hardcoded string literals** in code (`"payment.initiated"`, `"payment.processed"`), not read from `.env`'s `KAFKA_PAYMENT_INITIATED_TOPIC`/`KAFKA_PAYMENT_PROCESSED_TOPIC` (those vars are defined but unused).
+- Topic names are **hardcoded string literals** in code (`"payment.initiated"`, `"payment.processed"`), not config-driven. `.env` used to carry unread `KAFKA_PAYMENT_INITIATED_TOPIC`/`KAFKA_PAYMENT_PROCESSED_TOPIC` vars for these; they were removed as dead config in the 2026-07-04 Stage 4 refactor (see Known Gaps) since nothing read them.
 
 ## REST endpoint
 
 `POST /bank/process` (`BankPaymentController`) — accepts `BankPaymentRequest`, delegates to the exact same `BankPaymentService` the Kafka consumer uses. Useful for manual/Swagger testing without going through Kafka. Documented via springdoc-openapi (`springdoc-openapi-starter-webmvc-ui`) — Swagger UI/OpenAPI JSON available at the default paths.
 
-## Configuration (`application.yml`, single profile, no dev/prod split)
+## Configuration (`application.yml` + `application-{dev,sit,prod}.yml` profiles)
 
 ```yaml
-server.port: 8081
+server.port: ${SERVER_PORT:8081}
 spring.kafka.bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
-bank.success-rate: 0.8       # UNUSED (see Known Gaps)
-bank.min-latency-ms: 100     # UNUSED
-bank.max-latency-ms: 500     # UNUSED
+bank.card.success-rate: 0.85
+bank.card.min-latency-ms: 200
+bank.card.max-latency-ms: 500
+bank.upi.success-rate: 0.92
+bank.upi.min-latency-ms: 50
+bank.upi.max-latency-ms: 150
+bank.net-banking.success-rate: 0.78
+bank.net-banking.min-latency-ms: 1000
+bank.net-banking.max-latency-ms: 3000
 ```
+`bank.*` is bound via `BankConfig` (`@ConfigurationProperties(prefix = "bank")`, nested
+`card`/`upi`/`netBanking` groups) and injected into `CardProcessor`/`UpiProcessor`/
+`NetBankingProcessor` — these are now the real source of success-rate/latency, not
+hardcoded constants (see Known Gaps for history). Active profile is set via
+`SPRING_PROFILES_ACTIVE` (`.env`, defaults to `dev` there); `application-{dev,sit,prod}.yml`
+only vary logging verbosity and, for `prod`, `management.endpoint.health.show-details`.
+`management.endpoints.web.exposure.include` covers `health,info,metrics,prometheus`
+(Actuator was already a `build.gradle` dependency).
 Logging: file at `logs/mock-bank-service.log`, daily rolling (10MB/30-day history).
 
 ## Known gaps / dead code (verified — don't assume these work)
 
-- **`spring.application.name` is not actually set.** `application.yml` has:
-  ```yaml
-  spring:
-    application:
-    name: mock-bank-service
-  ```
-  `name:` is indented as a *sibling* of `application:`, not nested under it (missing 2 spaces) — so `spring.application.name` is unset, and `spring.name`/top-level `name` (not a real Spring property) is what's actually parsed. Fix by indenting `name:` two more spaces if this ever needs to be correct.
-- **`BankConfig` (`@ConfigurationProperties(prefix="bank")`) is never injected anywhere.** The `bank.success-rate`/`min-latency-ms`/`max-latency-ms` YAML values do nothing — real values are hardcoded `private static final` constants inside `CardProcessor`/`UpiProcessor`/`NetBankingProcessor`. If asked to make simulation behavior configurable, this is the class to wire up.
-- **`BankPaymentMethod` enum is an unused duplicate of `PaymentMethod`** — dead code, safe to remove if cleaning up.
-- **`FailureReason.ACCOUNT_BLOCKED`** is defined but never produced by any processor.
+- ~~`spring.application.name` is not actually set~~ — **fixed** (2026-07-04 Stage 4 refactor). `name:` is now correctly nested under `spring.application` in `application.yml`.
+- ~~`BankConfig` is never injected anywhere~~ — **fixed** (2026-07-04). `BankConfig` was restructured into nested `card`/`upi`/`netBanking` groups and is now constructor-injected into `CardProcessor`/`UpiProcessor`/`NetBankingProcessor`, which read `successRate`/`minLatencyMs`/`maxLatencyMs` from it instead of hardcoded constants. Default YAML values reproduce the prior hardcoded behavior exactly (Card 85%/200-500ms, UPI 92%/50-150ms, NetBanking 78%/1000-3000ms).
+- ~~`BankPaymentMethod` enum is an unused duplicate of `PaymentMethod`~~ — **removed** (2026-07-04).
+- ~~`FailureReason.ACCOUNT_BLOCKED` defined but never produced~~ — **removed** (2026-07-04).
+- **Kafka topic names (`.env`'s old `KAFKA_PAYMENT_INITIATED_TOPIC`/`KAFKA_PAYMENT_PROCESSED_TOPIC`) were unread dead vars and have been removed from `.env`/`.env.example`** — topic names remain hardcoded string literals in `PaymentInitiatedConsumer`/`PaymentProcessedProducer`; making them config-driven was deferred as a larger change (touches `@KafkaListener`/producer call sites) — still open.
 - **Resilience4j is a declared dependency only** (`resilience4j-circuitbreaker`, `-retry`, `-timelimiter`, `spring-cloud-starter-circuitbreaker-resilience4j`) — no `@CircuitBreaker`/`@Retry`/`@RateLimiter` annotation exists anywhere in this service. The only real resilience mechanism here is Kafka's `@RetryableTopic`. Root `PROGRESS.md` still lists "circuit breaker on bank calls" / "rate limiter around Mock Bank" as TODOs — if implementing these, they were planned to wrap *calls into* this service (from payment-service) or possibly within it; check current state before assuming either.
 - **No idempotency check on the consumer** — `PaymentInitiatedEvent.idempotencyKey` is deserialized but never read. Redelivery of a Kafka message would re-run the simulation and publish a second `payment.processed` event for the same `paymentId`. (Downstream, payment-service is expected to be idempotent on consuming `payment.processed` — see its CLAUDE.md.)
 - **Only one test exists**, `MockBankServiceApplicationTests`, and it's `@Disabled`. No coverage of processors, router, consumer, or producer.

@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.Optional;
 
-@FeignClient(name = "merchant-service", url = "http://localhost:8082")
+@FeignClient(name = "merchant-service", url = "${merchant-service.url}")
 public interface MerchantServiceClient {
 
     @GetMapping("/merchants/validate-key")

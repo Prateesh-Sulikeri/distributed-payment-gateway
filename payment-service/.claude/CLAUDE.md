@@ -32,7 +32,7 @@ common/
              PaymentStatus, TransactionStatus
 payment/
   cache/     PaymentCacheService — Redis cache-aside, fail-open on Redis errors
-  client/    MerchantServiceClient (Feign, hardcoded http://localhost:8082) + dto/MerchantResponse
+  client/    MerchantServiceClient (Feign, URL from `merchant-service.url` property, defaults to http://localhost:8082) + dto/MerchantResponse
   controller/ PaymentController — @RequestMapping("/payments")
   dto/       PaymentRequest, PaymentResponse
   entity/    Payment — table `payments`
@@ -136,46 +136,48 @@ No resilience annotation wraps the Feign call to merchant-service in `ApiKeyVali
 
 ## Security — the most important gap to know about
 
-**No Spring Security dependency at all.** `application.yml` declares `jwt.secret`, `jwt.expiration`, `auth.user.*`, `auth.admin.*` (env-backed) but **grep confirms zero code references them anywhere** — this is dead config left over from Phase 1 (JWT auth, per root `PROGRESS.md`) that was superseded by API-key validation in Phase 3 and never cleaned up. Do not assume JWT auth is active.
+**No Spring Security dependency at all.** The dead `jwt.secret`/`jwt.expiration`/`auth.user.*`/`auth.admin.*` config that used to sit unread in `application.yml` (leftover from Phase 1's abandoned JWT design) was deleted in the Stage 4 infra/config refactor (2026-07-04) — it was confirmed via grep that no code referenced any of it. Do not assume JWT auth was ever active; API-key validation (Phase 3) is the only real mechanism, below.
 
 The real mechanism is `ApiKeyValidationFilter` (`OncePerRequestFilter`, `@Component`, auto-registered for all paths):
 - Only inspects requests where the URI starts with `/payments`.
 - **If the `Authorization` header is absent or doesn't start with `"Bearer "`, the filter calls `filterChain.doFilter()` and lets the request through unauthenticated** — `merchantId` is simply never set as a request attribute.
-- If present, extracts the token, calls `MerchantServiceClient.validateApiKey(apiKey)` (Feign → `GET http://localhost:8082/merchants/validate-key`). Empty result → `401 "Invalid API Key"`. Success → sets `merchantId`/`merchant` request attributes.
+- If present, extracts the token, calls `MerchantServiceClient.validateApiKey(apiKey)` (Feign → `GET {merchant-service.url}/merchants/validate-key`, base URL from the `MERCHANT_SERVICE_URL` env var, defaulting to `http://localhost:8082`). Empty result → `401 "Invalid API Key"`. Success → sets `merchantId`/`merchant` request attributes.
 
 **Concrete failure mode**: `POST /payments` with **no** `Authorization` header at all does not get rejected by the filter — it proceeds with `merchantId=null`, `PaymentServiceImpl.createPayment` tries to persist a `Payment` with a `NOT NULL merchant_id` column, throws `DataIntegrityViolationException`, which the idempotency race-guard catch block **misdiagnoses as a duplicate-key race**, triggers a `findByIdempotencyKey` lookup that returns empty, and ultimately surfaces as a confusing generic **500** rather than a clean 401. If you're asked to harden auth, this is the first thing to fix — the filter should reject requests with no `Authorization` header, not silently pass them through.
 
 The `/payments/admin/**` endpoints get **no distinct authorization** from the create endpoint — same filter, same optional check, no admin-vs-merchant role distinction despite the `/admin` path naming.
 
-`MerchantServiceClient` uses a **hardcoded** `http://localhost:8082` URL (no service discovery, no env var) — will need to change for any non-localhost deployment.
+`MerchantServiceClient` resolves its base URL from the `merchant-service.url` Spring property (`@FeignClient(name = "merchant-service", url = "${merchant-service.url}")`), which in turn reads `MERCHANT_SERVICE_URL` (defaulting to `http://localhost:8082`) — externalized in the Stage 4 infra refactor (2026-07-04) so a future move to Eureka/Consul service discovery is just dropping the `url` attribute, not a rewrite. Still no actual service discovery today.
 
-## Configuration (`application.yml`, single profile — no dev/prod split)
+## Configuration (`application.yml`, plus `application-{dev,sit,prod}.yml` profile overlays)
 
 ```yaml
-server.port: 8080
-spring.datasource: ${DB_URL}/${DB_USERNAME}/${DB_PASSWORD}
-spring.jpa: ddl-auto=none (Flyway owns schema), PostgreSQLDialect
+server.port: ${SERVER_PORT:8080}
+server.shutdown: graceful
+spring.lifecycle.timeout-per-shutdown-phase: 30s
+spring.datasource.url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}, username=${DB_USER}, password=${DB_PASSWORD}
+spring.jpa: ddl-auto=validate (Flyway owns schema; validate catches drift at startup instead of silently no-op'ing), PostgreSQLDialect
 spring.data.redis: ${REDIS_HOST}:${REDIS_PORT}, timeout=2000ms
 spring.flyway: baseline-on-migrate=true
 spring.kafka.bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 spring.cloud.openfeign.client.config.merchant-service: connectTimeout=5000, readTimeout=5000
-jwt.secret / jwt.expiration / auth.user.* / auth.admin.*   # DEAD — unread by any code
-mock_bank.url: ${MOCK_BANK_URL}                             # DEAD — no HTTP client to mock-bank exists; integration is Kafka-only
+merchant-service.url: ${MERCHANT_SERVICE_URL:http://localhost:8082}
 logging.file.name: logs/payment-service.log
-logging.level: com.payments.payment_service.payment.event.outbox=WARN (quiets the 5s poll)
+logging.level: com.payments.payment_service.payment.event.outbox=WARN (quiets the 5s poll), root overridden per-profile
 resilience4j.circuitbreaker.instances.kafkaProducer: (see above)
+management.endpoints.web.exposure.include: health, info, metrics, prometheus (prometheus registers no-op until micrometer-registry-prometheus is added)
 ```
 
-`.env.example` (checked in) is **out of sync** — it only lists `DB_URL/USERNAME/PASSWORD`, `REDIS_HOST/PORT`, `JWT_SECRET`, `JWT_EXPIRATION`, missing `AUTH_*`, `KAFKA_*`, `MOCK_BANK_URL` that `application.yml`/the real `.env` reference (some of those, like `MOCK_BANK_URL`, aren't even set in the real `.env` either — but nothing reads it, so it's harmless). `KAFKA_PAYMENT_INITIATED_TOPIC`/`KAFKA_PAYMENT_PROCESSED_TOPIC` env vars exist in the real `.env` but aren't referenced anywhere — topic names are hardcoded string literals in the producer/consumer classes.
+The dead `jwt.*`, `auth.user.*`, `auth.admin.*`, and `mock_bank.url` blocks (previously unread by any code) were deleted from `application.yml`/`.env`/`.env.example` in the Stage 4 refactor (2026-07-04) — see `.claude/PENDING.md` for the full change log. `SPRING_PROFILES_ACTIVE` (set in `.env`, default `dev`) selects between `application-dev.yml` (DEBUG root logging, `show-sql: true`), `application-sit.yml` (INFO root logging), and `application-prod.yml` (WARN root logging, `show-sql: false`, health details hidden).
+
+`.env.example` (checked in) was regenerated to match `application.yml`/the real `.env`: `DB_HOST/PORT/NAME/USER/PASSWORD`, `REDIS_HOST/PORT`, `SERVER_PORT`, `SPRING_PROFILES_ACTIVE`, `MERCHANT_SERVICE_URL`, `KAFKA_BOOTSTRAP_SERVERS`. `KAFKA_PAYMENT_INITIATED_TOPIC`/`KAFKA_PAYMENT_PROCESSED_TOPIC` env vars still exist in both files but aren't referenced anywhere — topic names remain hardcoded string literals in the producer/consumer classes (left as-is; out of scope for the config refactor).
 
 ## Known gaps (verified — don't assume these work)
 
-- **No active tests.** The only test class, `PaymentServiceApplicationTests`, is `@Disabled`. No unit/integration/Testcontainers coverage exists for any controller, service, repository, mapper, cache, or Kafka logic.
-- Dead config: `jwt.*`, `auth.user.*`, `auth.admin.*`, `mock_bank.url`.
+- **No active tests.** The only test class, `PaymentServiceApplicationTests`, is `@Disabled`. No unit/integration/Testcontainers coverage exists for any controller, service, repository, mapper, cache, or Kafka logic. Note this also means the `ddl-auto: validate` change (2026-07-04) has not actually been exercised against a live Postgres schema by any automated test — verify manually with `bootRun` before depending on it in CI.
 - Auth filter silently passes through requests with no `Authorization` header (see Security).
 - Outbox publish is not fully idempotent (crash-window double-publish risk).
 - `payment.succeeded` has no outbox/durability guarantee, unlike `payment.initiated`.
 - `.DLT` topics have no consumer/monitor; planned `GET /admin/dlt-messages` was never built.
 - `GlobalExceptionHandler`'s catch-all `Exception` handler returns the raw exception message in the 500 body — leaks internal details to API clients.
 - `PaymentCacheService.evict()` is unused — cached responses can go stale relative to DB status after a Kafka-driven status update.
-- Hardcoded Feign URL to merchant-service (`http://localhost:8082`) — not environment-configurable.

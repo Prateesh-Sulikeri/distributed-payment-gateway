@@ -1,0 +1,4 @@
+logging:
+  level:
+    root: DEBUG
+    com.payments: DEBUG

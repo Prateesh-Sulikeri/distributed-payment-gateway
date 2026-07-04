@@ -90,19 +90,30 @@ settlement_payment_records  payment_id (PK, same UUID as payment-service's payme
                              settlement_id (nullable), created_at
                              indexes: idx_spr_merchant, idx_spr_settled, idx_spr_merchant_settled
 ```
-`spring.jpa.hibernate.ddl-auto: none` — Hibernate does not even validate against Flyway's schema here (stricter than most sibling services, which use `validate`).
+`spring.jpa.hibernate.ddl-auto: validate` (changed from `none` in the Stage 4 infra refactor) — Hibernate now validates entity mappings against Flyway's schema at startup, same as sibling services. Verified against a live migrated Postgres instance; see `.claude/PENDING.md`.
 
-## Configuration (`application.yml`, single profile)
+## Configuration (`application.yml` + `application-{dev,sit,prod}.yml` profiles)
 
 ```yaml
-server.port: 8084   # hardcoded, not env-driven (unlike other services' ${X_PORT:default} pattern)
-spring.datasource: url/username/password from DB_URL/DB_USERNAME/DB_PASSWORD
+server.port: ${SERVER_PORT:8084}   # env-driven as of the Stage 4 refactor (was hardcoded before)
+server.shutdown: graceful
+spring.datasource.url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+spring.datasource.username: ${DB_USER}
+spring.datasource.password: ${DB_PASSWORD}
+spring.jpa.hibernate.ddl-auto: validate   # changed from `none` in the Stage 4 refactor — verified working, see PENDING.md
 spring.kafka.bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 spring.kafka.consumer.auto-offset-reset: earliest
 spring.batch.jdbc.initialize-schema: always   # Spring Batch's own metadata tables auto-created every startup
 spring.batch.job.enabled: false
+spring.lifecycle.timeout-per-shutdown-phase: 30s
+management.endpoints.web.exposure.include: health, info, metrics, prometheus
+management.endpoint.health.show-details: always   # `never` in application-prod.yml
 ```
-`.env` defines `DB_URL=jdbc:postgresql://localhost:5435/settlement_db`, `DB_USERNAME=settlement_user`, `DB_PASSWORD=settlement_pass`, `KAFKA_BOOTSTRAP_SERVERS`, plus unused leftovers (`REDIS_HOST`/`PORT`, `KAFKA_PAYMENT_INITIATED_TOPIC`, `KAFKA_PAYMENT_PROCESSED_TOPIC` — none of these are referenced by any Java code; the topic actually consumed, `payment.succeeded`, isn't even named in `.env`). No `.env.example` is checked in for this service.
+`.env` defines `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `KAFKA_BOOTSTRAP_SERVERS`, `SERVER_PORT`, `SPRING_PROFILES_ACTIVE` — standardized to match the other services' naming convention as of the Stage 4 infra refactor (previously `DB_URL`/`DB_USERNAME`/`DB_PASSWORD` plus dead `REDIS_HOST`/`REDIS_PORT`/`KAFKA_PAYMENT_INITIATED_TOPIC`/`KAFKA_PAYMENT_PROCESSED_TOPIC` vars, all removed since no code read them — this service has no Redis/Feign/Resilience4j code at all, and the topic it actually consumes, `payment.succeeded`, is a hardcoded string literal in `PaymentSucceededConsumer`, not sourced from any env var). `.env.example` is now checked in for this service. `spring-boot-starter-actuator` is a declared dependency in `build.gradle` (it already was, pre-refactor).
+
+Note: this service is **no longer stricter than its siblings on `ddl-auto`** — it was previously the only service using `none` (not even validating against the Flyway-managed schema); it now uses `validate` like the rest, confirmed working end-to-end against a live Postgres instance with Flyway's `V1__create_settlement_tables.sql` applied (see `.claude/PENDING.md`'s 2026-07-04 entry for the verification method).
+
+A `Dockerfile` (multi-stage Gradle build → `eclipse-temurin:21-jre-alpine` runtime, non-root `spring` user, `/actuator/health` healthcheck) was added as part of the same refactor to prepare this service for containerization.
 
 ## Known gaps (don't assume these work)
 

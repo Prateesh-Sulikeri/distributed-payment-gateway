@@ -34,3 +34,114 @@ Tracks outstanding work for this service, consolidated from `PROGRESS.md`, the o
 - Consider making `simulateLatency` non-blocking (e.g. a scheduled delayed publish) if consumer throughput ever becomes a concern, especially for the NetBanking path.
 - Add unit tests for each processor's approve/decline distribution (statistical assertion over N runs) and for `PaymentRouter`'s dispatch/`IllegalArgumentException` behavior — cheap, high-value tests given this service's logic is small and pure.
 - Add a lightweight `NewTopic` `@Bean`/init step (or a shared provisioning script referenced from the root) so `payment.initiated`/`payment.processed` (and their retry/DLT topics) are created automatically in a fresh environment instead of requiring manual `kafka-topics --create` calls.
+
+## 2026-07-04 — Stage 4 Infra & Config Refactor
+
+### Issue
+
+Ahead of Docker containerization and eventual AWS deployment, this service had several
+config/infra gaps: a YAML indentation bug that silently unset `spring.application.name`,
+a `BankConfig` class that was declared but never injected (so `bank.*` YAML values did
+nothing and success-rate/latency were hardcoded `private static final` constants per
+processor), no `SERVER_PORT`/`SPRING_PROFILES_ACTIVE` env-driven config, two dead `.env`
+vars, a couple of small dead-code items flagged in this file, no `.env.example`, no
+Spring profile split (dev/sit/prod), and no Dockerfile.
+
+### Root Cause
+
+Config wiring was never finished after the Phase 4 Strategy Pattern refactor moved
+simulation logic into per-method processor classes (see "Configurable success rate"
+item above) — the constants were hardcoded directly instead of reading from the
+already-declared `BankConfig`. The YAML indentation bug was a plain typo. The
+env/profile/Docker gaps are because this service was only ever run locally via
+`bootRun` against dockerized infra, never itself containerized.
+
+### Solution
+
+- Fixed `application.yml`: `name: mock-bank-service` now correctly nested under
+  `spring.application`.
+- Restructured `BankConfig` (`config/BankConfig.java`) into three nested
+  `Processor` groups (`card`, `upi`, `netBanking`), each with `successRate`,
+  `minLatencyMs`, `maxLatencyMs`. Registered explicitly via
+  `@EnableConfigurationProperties(BankConfig.class)` on `MockBankServiceApplication`
+  (no existing repo convention for `@ConfigurationPropertiesScan` vs
+  `@EnableConfigurationProperties` was found elsewhere in the codebase, so the latter
+  was used per the task default; `BankConfig` also still carries its original
+  `@Configuration` annotation, so it was already component-scanned as a bean — the
+  `@EnableConfigurationProperties` addition is a belt-and-suspenders explicit
+  registration, not a fix for a previously-missing bean).
+- `CardProcessor`/`UpiProcessor`/`NetBankingProcessor` now take `BankConfig` via
+  constructor injection (`@RequiredArgsConstructor`, matching this codebase's existing
+  Lombok convention) and read `successRate`/`minLatencyMs`/`maxLatencyMs` from their
+  respective nested group instead of hardcoded constants. Default YAML values
+  (`0.85`/200-500ms, `0.92`/50-150ms, `0.78`/1000-3000ms) reproduce the exact prior
+  hardcoded behavior — no behavior change.
+- Removed the old flat `bank.success-rate`/`min-latency-ms`/`max-latency-ms` keys from
+  `application.yml`, replaced with nested `bank.card.*`/`bank.upi.*`/`bank.net-banking.*`.
+- Added `server.port: ${SERVER_PORT:8081}`; added `SERVER_PORT=8081` to `.env`.
+- Added `SPRING_PROFILES_ACTIVE=dev` to `.env`.
+- Removed dead `.env` vars `KAFKA_PAYMENT_INITIATED_TOPIC`/`KAFKA_PAYMENT_PROCESSED_TOPIC`
+  (unread — topic names remain hardcoded string literals in
+  `PaymentInitiatedConsumer`/`PaymentProcessedProducer`; making them config-driven is
+  deferred as a slightly larger change touching `@KafkaListener`/producer call sites).
+- Removed dead code: the unused `BankPaymentMethod` enum (duplicate of `PaymentMethod`),
+  `FailureReason.ACCOUNT_BLOCKED` (never produced), and the now-still-unused
+  `BankConfig` import in `BankPaymentServiceImpl` (that class never used `BankConfig`
+  directly — the processors do).
+- Created `.env.example` (none existed) listing `KAFKA_BOOTSTRAP_SERVERS`,
+  `SERVER_PORT`, `SPRING_PROFILES_ACTIVE` — every var actually read after cleanup.
+- Confirmed `spring-boot-starter-actuator` was already a `build.gradle` dependency (no
+  change needed there); added `management.*`/`info.*` blocks to `application.yml`
+  (health/info/metrics/prometheus exposure, always-show health details, graceful
+  shutdown, 30s shutdown timeout).
+- Added `application-dev.yml` (root DEBUG), `application-sit.yml` (root INFO),
+  `application-prod.yml` (root WARN, health details `never`).
+- Added a multi-stage `Dockerfile` (Temurin 21 Alpine build/runtime, non-root `spring`
+  user, `/actuator/health` HEALTHCHECK) per the standard template used across services
+  in this refactor pass.
+
+### Files Modified
+
+- `src/main/resources/application.yml` (indentation fix, nested `bank.*`, `SERVER_PORT`,
+  `management`/`info` blocks, graceful shutdown)
+- `src/main/resources/application-dev.yml` (new)
+- `src/main/resources/application-sit.yml` (new)
+- `src/main/resources/application-prod.yml` (new)
+- `src/main/java/com/payments/mock_bank_service/config/BankConfig.java` (nested groups)
+- `src/main/java/com/payments/mock_bank_service/MockBankServiceApplication.java`
+  (`@EnableConfigurationProperties(BankConfig.class)`)
+- `src/main/java/com/payments/mock_bank_service/processor/CardProcessor.java`
+- `src/main/java/com/payments/mock_bank_service/processor/UpiProcessor.java`
+- `src/main/java/com/payments/mock_bank_service/processor/NetBankingProcessor.java`
+- `src/main/java/com/payments/mock_bank_service/service/impl/BankPaymentServiceImpl.java`
+  (removed unused `BankConfig` import)
+- `src/main/java/com/payments/mock_bank_service/type/FailureReason.java`
+  (removed `ACCOUNT_BLOCKED`)
+- `src/main/java/com/payments/mock_bank_service/type/BankPaymentMethod.java` (deleted)
+- `.env` (added `SERVER_PORT`, `SPRING_PROFILES_ACTIVE`; removed dead topic vars)
+- `.env.example` (new)
+- `Dockerfile` (new)
+
+### Impact
+- Runtime: success-rate/latency per payment method are now genuinely configurable via
+  YAML/env without a code change or recompile; default simulated behavior is unchanged.
+- Deployment: service is now containerizable (multi-stage Dockerfile, non-root user,
+  health-checked); port and active profile are externalized via env vars, ready for
+  Docker/AWS environment injection.
+- Performance: no change — `Thread.sleep`-based latency simulation is untouched per
+  scope (explicitly deferred, see Follow-up).
+- Security: runs as non-root `spring` user in the container image; no auth changes
+  (this service has none, by design — see repo-root CLAUDE.md).
+- Maintainability: removed two dead-code items and a dead import; `.env.example` now
+  gives a single source of truth for which env vars this service actually reads.
+
+### Follow-up
+
+- Make Kafka topic names config-driven (`@Value`/`application.yml`-backed) instead of
+  hardcoded string literals in `PaymentInitiatedConsumer`/`PaymentProcessedProducer` —
+  deferred, larger change than this pass's scope.
+- Idempotency guard on `PaymentInitiatedConsumer` (still open — out of scope here).
+- `@RateLimiter`/other Resilience4j annotations (still open — out of scope here).
+- Non-blocking latency simulation (still open — out of scope here, explicitly excluded
+  by task instructions).
+- `@DltHandler`/DLT monitoring (still open, system-wide gap — out of scope here).
