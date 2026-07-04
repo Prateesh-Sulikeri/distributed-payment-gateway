@@ -1,23 +1,25 @@
 package com.payments.mock_bank_service.processor;
 
+import com.payments.mock_bank_service.config.BankConfig;
 import com.payments.mock_bank_service.dto.BankPaymentRequest;
 import com.payments.mock_bank_service.dto.BankPaymentResponse;
 import com.payments.mock_bank_service.type.FailureReason;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 @Component
+@RequiredArgsConstructor
 public class UpiProcessor extends AbstractPaymentProcessor{
 
-    private static final double SUCCESS_RATE = 0.92;
-
-    private static final int MIN_LATENCY_MS = 50;
-    private static final int MAX_LATENCY_MS = 150;
+    private final BankConfig bankConfig;
 
     @Override
     public BankPaymentResponse process(BankPaymentRequest request) {
-        simulateLatency(MIN_LATENCY_MS, MAX_LATENCY_MS);
+        BankConfig.Processor config = bankConfig.getUpi();
 
-        if(isApproved(SUCCESS_RATE)) {
+        simulateLatency(config.getMinLatencyMs(), config.getMaxLatencyMs());
+
+        if(isApproved(config.getSuccessRate())) {
             return approvedResponse(request);
         }
         return declinedResponse(

@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import java.util.Optional;
 import java.util.UUID;
 
-@FeignClient(name = "merchant-service", url="http://localhost:8082")
+@FeignClient(name = "merchant-service", url = "${merchant-service.url}")
 public interface MerchantServiceClient {
 
     @GetMapping("/merchants/{id}")

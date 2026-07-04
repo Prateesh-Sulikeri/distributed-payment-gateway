@@ -1,0 +1,8 @@
+logging:
+  level:
+    root: WARN
+
+management:
+  endpoint:
+    health:
+      show-details: never

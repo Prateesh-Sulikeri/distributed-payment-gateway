@@ -1,0 +1,12 @@
+spring:
+  jpa:
+    show-sql: false
+
+logging:
+  level:
+    root: WARN
+
+management:
+  endpoint:
+    health:
+      show-details: never

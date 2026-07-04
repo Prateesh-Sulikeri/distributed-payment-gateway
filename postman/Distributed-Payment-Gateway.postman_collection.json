@@ -1,0 +1,247 @@
+{
+  "info": {
+    "_postman_id": "6f2a1e3c-6b7d-4a2f-9c1e-3d8b5a7f0c21",
+    "name": "Distributed Payment Gateway",
+    "description": "End-to-end regression collection for the distributed payment gateway, covering every service in the system. Requests are ordered so that running the collection top-to-bottom (or via the Collection Runner) chains state automatically: registering a merchant captures its API key and merchant ID, and submitting a payment captures its payment ID, all via collection variables set in each request's Tests script.\n\nBuilt after the Stage 4 infra/config refactor (2026-07-04) — all requests go through `gateway-service` on port 9000 where a route exists; `mock-bank-service` and settlement-service's (nonexistent) REST surface are called/noted directly since the gateway intentionally does not route to mock-bank-service, and settlement-service has no REST API at all yet.\n\nNOTE: payment processing is asynchronous (Kafka-driven). If running via the Collection Runner, add a short delay (1-3s; NET_BANKING can take up to 3s alone) between each \"Submit Payment\" request and its corresponding \"Get Payment Status\" request, or just re-run the GET manually after a moment.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "gateway_url", "value": "http://localhost:9000", "type": "string" },
+    { "key": "payment_url", "value": "http://localhost:8080", "type": "string" },
+    { "key": "mock_bank_url", "value": "http://localhost:8081", "type": "string" },
+    { "key": "merchant_url", "value": "http://localhost:8082", "type": "string" },
+    { "key": "webhook_url", "value": "http://localhost:8083", "type": "string" },
+    { "key": "settlement_url", "value": "http://localhost:8084", "type": "string" },
+    { "key": "merchant_webhook_url", "value": "https://webhook.site/979481a7-4771-41d6-9b37-8d02dc30a14d", "type": "string", "description": "Personal webhook.site test sink used in the 2026-07-04 verification session. Swap for your own https://webhook.site UUID before re-running." },
+    { "key": "api_key", "value": "", "type": "string" },
+    { "key": "merchant_id", "value": "", "type": "string" },
+    { "key": "webhook_delivery_id", "value": "", "type": "string", "description": "Manually paste an id from 'List Pending/Dead Webhooks' before calling Retry Webhook." },
+    { "key": "payment_id_upi", "value": "", "type": "string" },
+    { "key": "payment_id_card", "value": "", "type": "string" },
+    { "key": "payment_id_netbanking", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Health Checks",
+      "item": [
+        { "name": "Gateway Service Health", "request": { "method": "GET", "header": [], "url": { "raw": "{{gateway_url}}/actuator/health", "host": ["{{gateway_url}}"], "path": ["actuator", "health"] } }, "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Status is 200', () => pm.response.to.have.status(200));", "pm.test('Reports UP', () => pm.expect(pm.response.json().status).to.eql('UP'));" ] } } ] },
+        { "name": "Payment Service Health", "request": { "method": "GET", "header": [], "url": { "raw": "{{payment_url}}/actuator/health", "host": ["{{payment_url}}"], "path": ["actuator", "health"] } }, "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Status is 200', () => pm.response.to.have.status(200));", "pm.test('Reports UP', () => pm.expect(pm.response.json().status).to.eql('UP'));" ] } } ] },
+        { "name": "Mock Bank Service Health", "request": { "method": "GET", "header": [], "url": { "raw": "{{mock_bank_url}}/actuator/health", "host": ["{{mock_bank_url}}"], "path": ["actuator", "health"] } }, "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Status is 200', () => pm.response.to.have.status(200));", "pm.test('Reports UP', () => pm.expect(pm.response.json().status).to.eql('UP'));" ] } } ] },
+        { "name": "Merchant Service Health", "request": { "method": "GET", "header": [], "url": { "raw": "{{merchant_url}}/actuator/health", "host": ["{{merchant_url}}"], "path": ["actuator", "health"] } }, "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Status is 200', () => pm.response.to.have.status(200));", "pm.test('Reports UP', () => pm.expect(pm.response.json().status).to.eql('UP'));" ] } } ] },
+        { "name": "Webhook Service Health", "request": { "method": "GET", "header": [], "url": { "raw": "{{webhook_url}}/actuator/health", "host": ["{{webhook_url}}"], "path": ["actuator", "health"] } }, "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Status is 200', () => pm.response.to.have.status(200));", "pm.test('Reports UP', () => pm.expect(pm.response.json().status).to.eql('UP'));" ] } } ] },
+        { "name": "Settlement Service Health", "request": { "method": "GET", "header": [], "url": { "raw": "{{settlement_url}}/actuator/health", "host": ["{{settlement_url}}"], "path": ["actuator", "health"] } }, "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Status is 200', () => pm.response.to.have.status(200));", "pm.test('Reports UP', () => pm.expect(pm.response.json().status).to.eql('UP'));" ] } } ] }
+      ]
+    },
+    {
+      "name": "Merchant Service",
+      "item": [
+        {
+          "name": "Register Merchant",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Postman Test Merchant\",\n  \"email\": \"postman-test-{{$timestamp}}@example.com\",\n  \"webhookUrl\": \"{{merchant_webhook_url}}\"\n}" },
+            "url": { "raw": "{{gateway_url}}/merchants/register", "host": ["{{gateway_url}}"], "path": ["merchants", "register"] },
+            "description": "Routed through gateway-service (proves its POST /merchants/** route). Response's apiKey is only ever shown here and on rotate."
+          },
+          "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+            "const json = pm.response.json();",
+            "pm.test('Response has apiKey and merchantId', () => { pm.expect(json.apiKey).to.be.a('string'); pm.expect(json.merchantId).to.be.a('string'); });",
+            "pm.collectionVariables.set('api_key', json.apiKey);",
+            "pm.collectionVariables.set('merchant_id', json.merchantId);"
+          ] } } ]
+        },
+        {
+          "name": "Validate API Key",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{gateway_url}}/merchants/validate-key?apiKey={{api_key}}", "host": ["{{gateway_url}}"], "path": ["merchants", "validate-key"], "query": [ { "key": "apiKey", "value": "{{api_key}}" } ] },
+            "description": "This is the same lookup payment-service's ApiKeyValidationFilter performs on every /payments request."
+          },
+          "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Status is 200', () => pm.response.to.have.status(200));" ] } } ]
+        },
+        {
+          "name": "Get Merchant By Id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{gateway_url}}/merchants/{{merchant_id}}", "host": ["{{gateway_url}}"], "path": ["merchants", "{{merchant_id}}"] }
+          },
+          "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Status is 200', () => pm.response.to.have.status(200));" ] } } ]
+        },
+        {
+          "name": "Update Merchant (direct — PUT not routed via gateway)",
+          "request": {
+            "method": "PUT",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Postman Test Merchant (Updated)\"\n}" },
+            "url": { "raw": "{{merchant_url}}/merchants/{{merchant_id}}", "host": ["{{merchant_url}}"], "path": ["merchants", "{{merchant_id}}"] },
+            "description": "gateway-service only proxies GET and POST today (a known, documented gap) — PUT must go straight to merchant-service on :8082 until the gateway routes more methods."
+          },
+          "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Status is 200', () => pm.response.to.have.status(200));" ] } } ]
+        },
+        {
+          "name": "Rotate API Key",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": { "mode": "raw", "raw": "" },
+            "url": { "raw": "{{gateway_url}}/merchants/api-keys/rotate/{{merchant_id}}", "host": ["{{gateway_url}}"], "path": ["merchants", "api-keys", "rotate", "{{merchant_id}}"] },
+            "description": "WARNING: immediately invalidates the current {{api_key}} with no grace period (documented gap — single active key per merchant). This request updates the api_key collection variable so later requests keep working."
+          },
+          "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+            "const json = pm.response.json();",
+            "if (json.apiKey) { pm.collectionVariables.set('api_key', json.apiKey); }"
+          ] } } ]
+        }
+      ]
+    },
+    {
+      "name": "Payments (via Gateway)",
+      "item": [
+        {
+          "name": "Submit Payment - UPI",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{$guid}}" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"amount\": 250.00,\n  \"currency\": \"INR\",\n  \"paymentMethod\": \"UPI\",\n  \"description\": \"Postman collection - UPI test\"\n}" },
+            "url": { "raw": "{{gateway_url}}/payments", "host": ["{{gateway_url}}"], "path": ["payments"] },
+            "description": "UPI has a 92% simulated success rate in mock-bank-service — most runs approve, occasional DAILY_LIMIT_EXCEEDED/UPI_ID_NOT_FOUND declines are expected and correct, not a bug."
+          },
+          "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status is 202', () => pm.response.to.have.status(202));",
+            "const json = pm.response.json();",
+            "pm.test('Status is PENDING', () => pm.expect(json.status).to.eql('PENDING'));",
+            "pm.collectionVariables.set('payment_id_upi', json.id);"
+          ] } } ]
+        },
+        {
+          "name": "Submit Payment - CARD",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{$guid}}" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"amount\": 500.00,\n  \"currency\": \"INR\",\n  \"paymentMethod\": \"CARD\",\n  \"description\": \"Postman collection - CARD test\"\n}" },
+            "url": { "raw": "{{gateway_url}}/payments", "host": ["{{gateway_url}}"], "path": ["payments"] },
+            "description": "CARD has an 85% simulated success rate — occasional INSUFFICIENT_FUNDS/CARD_EXPIRED/CVV_MISMATCH declines are expected."
+          },
+          "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status is 202', () => pm.response.to.have.status(202));",
+            "const json = pm.response.json();",
+            "pm.test('Status is PENDING', () => pm.expect(json.status).to.eql('PENDING'));",
+            "pm.collectionVariables.set('payment_id_card', json.id);"
+          ] } } ]
+        },
+        {
+          "name": "Submit Payment - NET_BANKING",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{$guid}}" },
+              { "key": "Authorization", "value": "Bearer {{api_key}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"amount\": 1000.00,\n  \"currency\": \"INR\",\n  \"paymentMethod\": \"NET_BANKING\",\n  \"description\": \"Postman collection - NET_BANKING test\"\n}" },
+            "url": { "raw": "{{gateway_url}}/payments", "host": ["{{gateway_url}}"], "path": ["payments"] },
+            "description": "NET_BANKING has a 78% simulated success rate and 1000-3000ms simulated bank latency — the slowest of the three, allow extra time before checking status."
+          },
+          "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status is 202', () => pm.response.to.have.status(202));",
+            "const json = pm.response.json();",
+            "pm.test('Status is PENDING', () => pm.expect(json.status).to.eql('PENDING'));",
+            "pm.collectionVariables.set('payment_id_netbanking', json.id);"
+          ] } } ]
+        },
+        {
+          "name": "Get Payment Status - UPI",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{gateway_url}}/payments/admin/id/{{payment_id_upi}}", "host": ["{{gateway_url}}"], "path": ["payments", "admin", "id", "{{payment_id_upi}}"] } },
+          "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Status is 200', () => pm.response.to.have.status(200));", "console.log('UPI payment status:', pm.response.json().status, pm.response.json().failureReason);" ] } } ]
+        },
+        {
+          "name": "Get Payment Status - CARD",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{gateway_url}}/payments/admin/id/{{payment_id_card}}", "host": ["{{gateway_url}}"], "path": ["payments", "admin", "id", "{{payment_id_card}}"] } },
+          "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Status is 200', () => pm.response.to.have.status(200));", "console.log('CARD payment status:', pm.response.json().status, pm.response.json().failureReason);" ] } } ]
+        },
+        {
+          "name": "Get Payment Status - NET_BANKING",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{gateway_url}}/payments/admin/id/{{payment_id_netbanking}}", "host": ["{{gateway_url}}"], "path": ["payments", "admin", "id", "{{payment_id_netbanking}}"] } },
+          "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Status is 200', () => pm.response.to.have.status(200));", "console.log('NET_BANKING payment status:', pm.response.json().status, pm.response.json().failureReason);" ] } } ]
+        },
+        {
+          "name": "List All Payments",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{gateway_url}}/payments/admin?page=0&size=20", "host": ["{{gateway_url}}"], "path": ["payments", "admin"], "query": [ { "key": "page", "value": "0" }, { "key": "size", "value": "20" } ] } },
+          "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Status is 200', () => pm.response.to.have.status(200));" ] } } ]
+        },
+        {
+          "name": "List Payments By Status (SUCCESS)",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{gateway_url}}/payments/admin/status/SUCCESS?page=0&size=20", "host": ["{{gateway_url}}"], "path": ["payments", "admin", "status", "SUCCESS"], "query": [ { "key": "page", "value": "0" }, { "key": "size", "value": "20" } ] } },
+          "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Status is 200', () => pm.response.to.have.status(200));" ] } } ]
+        }
+      ]
+    },
+    {
+      "name": "Webhook Service Admin",
+      "item": [
+        {
+          "name": "List Pending Webhooks",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{gateway_url}}/webhooks/status-pending?page=0&size=20", "host": ["{{gateway_url}}"], "path": ["webhooks", "status-pending"], "query": [ { "key": "page", "value": "0" }, { "key": "size", "value": "20" } ] } },
+          "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Status is 200', () => pm.response.to.have.status(200));" ] } } ]
+        },
+        {
+          "name": "List Dead Webhooks",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{gateway_url}}/webhooks/status-dead?page=0&size=20", "host": ["{{gateway_url}}"], "path": ["webhooks", "status-dead"], "query": [ { "key": "page", "value": "0" }, { "key": "size", "value": "20" } ] } },
+          "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [ "pm.test('Status is 200', () => pm.response.to.have.status(200));" ] } } ]
+        },
+        {
+          "name": "Retry Webhook",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{gateway_url}}/webhooks/retry/{{webhook_delivery_id}}", "host": ["{{gateway_url}}"], "path": ["webhooks", "retry", "{{webhook_delivery_id}}"] },
+            "description": "Set the webhook_delivery_id collection variable to an id from 'List Pending/Dead Webhooks' first. Only valid from FAILED/DEAD status (else 500/IllegalStateException). This call is synchronous — the HTTP response blocks on the actual outbound delivery attempt."
+          },
+          "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "if (!pm.collectionVariables.get('webhook_delivery_id')) {",
+            "  console.warn('webhook_delivery_id is not set — paste one from List Pending/Dead Webhooks first. A 404 here just means that step was skipped, it is not a collection bug.');",
+            "} else {",
+            "  pm.test('Status is 204', () => pm.response.to.have.status(204));",
+            "}"
+          ] } } ]
+        }
+      ]
+    },
+    {
+      "name": "Settlement Service",
+      "item": [],
+      "description": "No REST API exists in settlement-service today (confirmed absent — no controller package at all, despite spring-boot-starter-webmvc being a dependency). It only runs a nightly @Scheduled batch job (cron 0 0 0 * * *) that mirrors payment.succeeded events into its own local ledger. Planned-but-not-built endpoints per .claude/PENDING.md: GET /settlements?merchantId=&date= and a manual admin trigger — add real requests here once those ship."
+    },
+    {
+      "name": "Mock Bank (direct — no gateway route by design)",
+      "item": [
+        {
+          "name": "Process Payment Directly",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{\n  \"paymentId\": \"{{$guid}}\",\n  \"amount\": 100.00,\n  \"currency\": \"INR\",\n  \"paymentMethod\": \"UPI\"\n}" },
+            "url": { "raw": "{{mock_bank_url}}/bank/process", "host": ["{{mock_bank_url}}"], "path": ["bank", "process"] },
+            "description": "Synchronous bypass around Kafka — calls the exact same BankPaymentService the payment.initiated consumer uses. mock-bank-service intentionally has no gateway route (it's meant to be internal-only, reachable normally only via Kafka from payment-service), so this is called directly against :8081.\n\nKNOWN BUG (found 2026-07-04 via this collection, pre-existing, unrelated to the Stage 4 infra refactor): this currently returns 500 for every request. BankPaymentRequest is annotated @Data @Builder with no @NoArgsConstructor, and Jackson 3 (tools.jackson.databind, used repo-wide) can't find a usable Creator to deserialize into it (InvalidDefinitionException: no delegate- or property-based Creator). The Kafka-driven path (the one actually used in production, i.e. every payment submitted via POST /payments) is unaffected since PaymentInitiatedConsumer builds this object in Java directly rather than deserializing it from JSON."
+          },
+          "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Status is 200', () => pm.response.to.have.status(200));"
+          ] } } ]
+        }
+      ]
+    }
+  ]
+}

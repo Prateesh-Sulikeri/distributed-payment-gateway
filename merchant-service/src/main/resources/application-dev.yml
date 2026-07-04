@@ -1,0 +1,4 @@
+logging:
+  level:
+    root: INFO
+    com.payments.merchant_service: DEBUG
